@@ -18,6 +18,8 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-jb:social:}
+    volumes:
+      - ${STORAGE_VOLUME_NAME:-test_storage-data-test}:/app/public_storage
     networks:
       - jb-network
 
@@ -25,3 +27,8 @@ networks:
   jb-network:
     external: true
     name: ${DOCKER_NETWORK_NAME:-test_jobbaskets-network-test}
+
+volumes:
+  test_storage-data-test:
+    external: true
+    name: ${STORAGE_VOLUME_NAME:-test_storage-data-test}

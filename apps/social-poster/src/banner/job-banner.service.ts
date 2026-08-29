@@ -55,11 +55,11 @@ export class JobBannerService implements OnModuleInit {
    */
   async getOrSaveBanner(job: JobPublishedPayloadDto): Promise<{ buffer: Buffer; publicUrl: string }> {
     const buffer = await this.generateBanner(job);
-    const frontendUrl = this.getFrontendUrl();
     const filename = `${job.uuid}.png`;
 
     const storageCandidates = [
       this.configService.get<string>('BANNER_STORAGE_PATH'),
+      '/app/public_storage/app/public/banners',
       '/home/jk/work/jb/jobbaskets-api/public/banners',
       path.resolve(process.cwd(), 'apps/social-poster/public/banners'),
       path.resolve(process.cwd(), 'public/banners'),
@@ -81,7 +81,9 @@ export class JobBannerService implements OnModuleInit {
       }
     }
 
-    const publicUrl = `${frontendUrl}/banners/${filename}`;
+    const publicPrefix = this.configService.get<string>('BANNER_PUBLIC_URL_PREFIX')
+      || `${this.getFrontendUrl()}/storage/banners`;
+    const publicUrl = `${publicPrefix.replace(/\/+$/, '')}/${filename}`;
     return { buffer, publicUrl };
   }
 
