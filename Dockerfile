@@ -29,12 +29,20 @@ ENV NODE_ENV=production
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# Install TrueType fonts so Canvas renders text beautifully
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    fonts-dejavu-core \
+    fonts-freefont-ttf \
+    fontconfig \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy manifests and install production-only dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --prod --frozen-lockfile
 
-# Copy compiled artifacts from builder stage
+# Copy compiled artifacts and static assets (official logo)
 COPY --from=builder /app/dist ./dist
+COPY apps/social-poster/assets ./apps/social-poster/assets
 
 # Run as non-root node user for container security
 USER node
