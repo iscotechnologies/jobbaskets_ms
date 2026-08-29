@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JobPublishedPayloadDto } from '@app/common';
+import { JobPublishedPayloadDto, resolveCurrencySymbol } from '@app/common';
 import { BaseSocialPlugin } from '../base/base-social.plugin';
 import { FormattedPost, PluginHealth, PublishResult } from '../plugin.interface';
 import { TelegramBotClient } from './telegram-bot.client';
@@ -51,8 +51,9 @@ export class TelegramPlugin extends BaseSocialPlugin {
   format(payload: JobPublishedPayloadDto): FormattedPost {
     const locations = payload.locations && payload.locations.length > 0 ? payload.locations.join(', ') : 'Multiple Locations';
     const workType = payload.work_type ? ` (${payload.work_type.toUpperCase()})` : '';
+    const curr = resolveCurrencySymbol(payload.salary_currency);
     const salaryText = payload.show_salary && payload.salary_min && payload.salary_max
-      ? `💰 <b>Salary:</b> ${payload.salary_currency || '$'}${payload.salary_min.toLocaleString()} - ${payload.salary_currency || '$'}${payload.salary_max.toLocaleString()}`
+      ? `💰 <b>Salary:</b> ${curr}${payload.salary_min.toLocaleString()} - ${curr}${payload.salary_max.toLocaleString()}`
       : null;
 
     const hashtags = ['#Hiring', '#JobOpening', '#JobBaskets'];

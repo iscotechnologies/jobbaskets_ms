@@ -27,8 +27,9 @@ export class SocialContentFormatterService {
   formatContent(payload: JobPublishedPayloadDto, platform: SocialPlatform): FormattedSocialContent {
     const locations = payload.locations && payload.locations.length > 0 ? payload.locations.join(', ') : 'Multiple Locations';
     const workType = payload.work_type ? ` (${payload.work_type.toUpperCase()})` : '';
+    const curr = this.resolveCurrency(payload.salary_currency);
     const salaryText = payload.show_salary && payload.salary_min && payload.salary_max
-      ? `💰 Salary: ${payload.salary_currency || '$'}${payload.salary_min.toLocaleString()} - ${payload.salary_currency || '$'}${payload.salary_max.toLocaleString()}`
+      ? `💰 Salary: ${curr}${payload.salary_min.toLocaleString()} - ${payload.salary_max.toLocaleString()}`
       : null;
 
     const hashtags = this.generateHashtags(payload, platform);
@@ -166,5 +167,16 @@ export class SocialContentFormatterService {
       tags.push('#RemoteJobs', '#WorkFromHome');
     }
     return tags;
+  }
+
+  private resolveCurrency(currency?: string): string {
+    if (!currency) return '₹';
+    const c = currency.trim().toUpperCase();
+    if (c === 'INR' || c === 'RS' || c === 'RS.' || c === '₹') return '₹';
+    if (c === 'USD' || c === '$') return '$';
+    if (c === 'EUR' || c === '€') return '€';
+    if (c === 'GBP' || c === '£') return '£';
+    if (c === 'AED') return 'AED ';
+    return currency;
   }
 }

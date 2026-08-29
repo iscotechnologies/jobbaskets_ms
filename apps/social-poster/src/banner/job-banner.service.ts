@@ -187,7 +187,8 @@ export class JobBannerService implements OnModuleInit {
     pillX += this.getTextWidth(ctx, `📍 ${locationText}${workTypeText}`, 'bold 18px sans-serif') + 40;
 
     if (job.show_salary && job.salary_min && job.salary_max) {
-      const salaryStr = `💰 ${job.salary_currency || '$'}${job.salary_min.toLocaleString()} - ${job.salary_max.toLocaleString()}`;
+      const curr = this.resolveCurrency(job.salary_currency);
+      const salaryStr = `💰 ${curr}${job.salary_min.toLocaleString()} - ${job.salary_max.toLocaleString()}`;
       this.drawPill(ctx, pillX, pillY, salaryStr, '#10b981');
       pillX += this.getTextWidth(ctx, salaryStr, 'bold 18px sans-serif') + 40;
     }
@@ -279,5 +280,16 @@ export class JobBannerService implements OnModuleInit {
   private getTextWidth(ctx: SKRSContext2D, text: string, font: string) {
     ctx.font = font;
     return ctx.measureText(text).width;
+  }
+
+  private resolveCurrency(currency?: string): string {
+    if (!currency) return '₹';
+    const c = currency.trim().toUpperCase();
+    if (c === 'INR' || c === 'RS' || c === 'RS.' || c === '₹') return '₹';
+    if (c === 'USD' || c === '$') return '$';
+    if (c === 'EUR' || c === '€') return '€';
+    if (c === 'GBP' || c === '£') return '£';
+    if (c === 'AED') return 'AED ';
+    return currency;
   }
 }
