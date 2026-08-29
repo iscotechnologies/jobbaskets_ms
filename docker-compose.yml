@@ -1,0 +1,24 @@
+services:
+  social-poster:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-iscotechnologies/jobbaskets_ms}:${IMAGE_TAG:-latest}
+    container_name: jobbaskets_social_poster
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PORT:-3001}:3001"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - REDIS_HOST=${REDIS_HOST:-jobbaskets_api_redis_test}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-jb:social:}
+    networks:
+      - jb-network
+
+networks:
+  jb-network:
+    external: true
+    name: ${DOCKER_NETWORK_NAME:-test_jobbaskets-network-test}
