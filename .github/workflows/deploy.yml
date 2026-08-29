@@ -71,6 +71,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT || 2244 }}
           source: "docker-compose.yml"
           target: "/var/www/jobbaskets/ms"
@@ -83,6 +84,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT || 2244 }}
           command_timeout: 15m
           script: |
