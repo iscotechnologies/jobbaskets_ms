@@ -1,5 +1,8 @@
 services:
   social-poster:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-iscotechnologies/jobbaskets_ms}:${IMAGE_TAG:-latest}
     container_name: jobbaskets_social_poster
     restart: unless-stopped
