@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createCanvas, loadImage, Image, SKRSContext2D } from '@napi-rs/canvas';
-import { JobPublishedPayloadDto } from '@app/common';
+import { createCanvas, loadImage, Image, SKRSContext2D, GlobalFonts } from '@napi-rs/canvas';
+import { JobPublishedPayloadDto, resolveCurrencySymbol } from '@app/common';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -9,11 +9,57 @@ import * as fs from 'fs';
 export class JobBannerService implements OnModuleInit {
   private readonly logger = new Logger(JobBannerService.name);
   private logoImage?: Image;
+  private templateImage?: Image;
+  private fontsLoaded = false;
 
   constructor(private readonly configService: ConfigService) {}
 
   async onModuleInit() {
-    await this.loadBrandLogo();
+    this.registerFonts();
+    await Promise.all([this.loadBrandLogo(), this.loadTemplateImage()]);
+  }
+
+  private registerFonts() {
+    if (this.fontsLoaded) return;
+    const fontCandidates = [
+      path.resolve(__dirname, '../../assets/fonts/Carlito-Bold.ttf'),
+      path.resolve(__dirname, '../assets/fonts/Carlito-Bold.ttf'),
+      path.resolve(process.cwd(), 'apps/social-poster/assets/fonts/Carlito-Bold.ttf'),
+      '/usr/share/fonts/google-carlito-fonts/Carlito-Bold.ttf',
+    ];
+
+    for (const fontPath of fontCandidates) {
+      if (fs.existsSync(fontPath)) {
+        try {
+          GlobalFonts.registerFromPath(fontPath, 'JobBasketsSans');
+          this.logger.log(`Registered custom TrueType font from: ${fontPath}`);
+          this.fontsLoaded = true;
+          break;
+        } catch (err) {
+          this.logger.warn(`Could not register font from ${fontPath}: ${err}`);
+        }
+      }
+    }
+  }
+
+  private async loadTemplateImage() {
+    const candidates = [
+      path.resolve(__dirname, '../../assets/job_template_clean.png'),
+      path.resolve(__dirname, '../assets/job_template_clean.png'),
+      path.resolve(process.cwd(), 'apps/social-poster/assets/job_template_clean.png'),
+    ];
+
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        try {
+          this.templateImage = await loadImage(p);
+          this.logger.log(`Loaded official JobBaskets template image from: ${p}`);
+          return;
+        } catch (err) {
+          this.logger.warn(`Failed to load template from ${p}: ${err}`);
+        }
+      }
+    }
   }
 
   private async loadBrandLogo() {
@@ -88,17 +134,130 @@ export class JobBannerService implements OnModuleInit {
   }
 
   /**
-   * Generates a 1200x630 professional Canva-style Job Banner Buffer with official logo & dynamic URL
+   * Generates banner buffer using the official JobBaskets template
    */
   async generateBanner(job: JobPublishedPayloadDto): Promise<Buffer> {
+    if (this.templateImage) {
+      return this.generateTemplateBanner(job);
+    }
+    return this.generateFallbackBanner(job);
+  }
+
+  private generateTemplateBanner(job: JobPublishedPayloadDto): Buffer {
+    const canvas = createCanvas(this.templateImage!.width, this.templateImage!.height);
+    const ctx = canvas.getContext('2d');
+
+    // 1. Draw base clean template
+    ctx.drawImage(this.templateImage!, 0, 0);
+
+    const fontBold = this.fontsLoaded ? 'JobBasketsSans' : 'sans-serif';
+
+    // 2. Headline
+    ctx.fillStyle = '#003874';
+    ctx.font = `bold 50px ${fontBold}`;
+    const isDirect = (job.company_name || '').toLowerCase().includes('jobbaskets');
+    ctx.fillText(isDirect ? 'We are hiring' : 'Our Client is hiring', 50, 245);
+
+    // 3. Job Title
+    const title = job.title || 'Job Opening';
+    ctx.fillStyle = '#222222';
+    ctx.font = `bold 56px ${fontBold}`;
+    ctx.fillText(title, 50, 335);
+
+    const titleW = ctx.measureText(title).width;
+    ctx.strokeStyle = '#222222';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(50, 350);
+    ctx.lineTo(50 + Math.min(titleW, 580), 350);
+    ctx.stroke();
+
+    // 4. Key-Value Specifications
+    const labelX = 50;
+    const colonX = 330;
+    const valX = 355;
+
+    const locationText = (job.locations && job.locations.length > 0)
+      ? job.locations.join(', ')
+      : 'Multiple Locations';
+
+    const curr = resolveCurrencySymbol(job.salary_currency);
+    let salaryText = 'Best in Industry';
+    if (job.show_salary && job.salary_min && job.salary_max) {
+      salaryText = `${curr} ${job.salary_min.toLocaleString()} - ${curr} ${job.salary_max.toLocaleString()}`;
+    } else if (job.show_salary && job.salary_min) {
+      salaryText = `${curr} ${job.salary_min.toLocaleString()}+`;
+    }
+
+    const employmentText = [job.employment_type, job.work_type ? `(${job.work_type})` : null]
+      .filter(Boolean)
+      .join(' ') || 'Full-Time';
+
+    const rows = [
+      { label: 'Company Name', val: job.company_name || 'JobBaskets Partner' },
+      { label: 'Location', val: locationText },
+      { label: 'Salary Range', val: salaryText },
+      { label: 'Job Type', val: employmentText },
+    ];
+
+    let y = 430;
+    for (const r of rows) {
+      ctx.fillStyle = '#222222';
+      ctx.font = `bold 32px ${fontBold}`;
+      ctx.fillText(r.label, labelX, y);
+      ctx.fillText(':', colonX, y);
+
+      ctx.fillStyle = '#333333';
+      ctx.fillText(r.val, valX, y);
+      y += 58;
+    }
+
+    // 5. Skills
+    ctx.fillStyle = '#222222';
+    ctx.font = `bold 32px ${fontBold}`;
+    ctx.fillText('Skill Required', labelX, y);
+    ctx.fillText(':', colonX, y);
+
+    const skills = (job.skills && job.skills.length > 0)
+      ? job.skills.slice(0, 5)
+      : ['Problem Solving', 'Communication', 'Industry Skills'];
+
+    const skillsText = skills.map((s) => `.${s}`).join(', ');
+
+    const words = skillsText.split(' ');
+    let line = '';
+    let skillY = y;
+    ctx.fillStyle = '#333333';
+    ctx.font = `bold 30px ${fontBold}`;
+
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + ' ';
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > 480 && n > 0) {
+        ctx.fillText(line.trim(), valX, skillY);
+        line = words[n] + ' ';
+        skillY += 46;
+      } else {
+        line = testLine;
+      }
+    }
+    if (line) {
+      ctx.fillText(line.trim(), valX, skillY);
+    }
+
+    return canvas.toBuffer('image/png');
+  }
+
+  private generateFallbackBanner(job: JobPublishedPayloadDto): Buffer {
     const width = 1200;
     const height = 630;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
+    const fontBold = this.fontsLoaded ? 'JobBasketsSans' : 'sans-serif';
     const frontendUrl = this.getFrontendUrl();
 
-    // 1. Sleek Modern Dark Tech Gradient Background
+    // Sleek Gradient Background
     const bgGrad = ctx.createLinearGradient(0, 0, width, height);
     bgGrad.addColorStop(0, '#0a0f1d');
     bgGrad.addColorStop(0.5, '#0f172a');

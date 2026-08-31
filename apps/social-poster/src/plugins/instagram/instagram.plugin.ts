@@ -71,15 +71,16 @@ export class InstagramPlugin extends BaseSocialPlugin {
     const jobUrl = this.resolveJobUrl(payload);
 
     const lines = [
-      `🚀 WE ARE HIRING! | ${payload.title.toUpperCase()}`,
+      `JOB OPPORTUNITY | ${payload.title.toUpperCase()}`,
       '',
-      `🏢 Company: ${payload.company_name}`,
-      `📍 Location: ${locations}${workType}`,
-      payload.employment_type ? `⏱ Type: ${payload.employment_type}` : null,
-      salaryText,
-      payload.skills && payload.skills.length > 0 ? `🛠 Skills: ${payload.skills.slice(0, 5).join(', ')}` : null,
+      `Organization: ${payload.company_name}`,
+      `Location: ${locations}${workType}`,
+      payload.employment_type ? `Employment Type: ${payload.employment_type}` : null,
+      payload.experience_required ? `Experience Level: ${payload.experience_required}` : null,
+      salaryText ? `Remuneration: ${salaryText.replace('💰 Salary: ', '')}` : null,
+      payload.skills && payload.skills.length > 0 ? `Key Competencies: ${payload.skills.slice(0, 5).join(', ')}` : null,
       '',
-      '👉 Tap the link in our bio or visit:',
+      'To review full specifications and submit your application, visit the link in bio or:',
       jobUrl,
       '',
       hashtags.join(' '),

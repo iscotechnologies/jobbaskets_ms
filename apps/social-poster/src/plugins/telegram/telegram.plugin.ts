@@ -67,14 +67,14 @@ export class TelegramPlugin extends BaseSocialPlugin {
     const jobUrl = this.resolveJobUrl(payload);
 
     const lines = [
-      `📢 <b>NEW JOB ALERT!</b>`,
-      `💼 <b>${this.escapeHtml(payload.title)}</b>`,
-      `🏢 <b>Company:</b> ${this.escapeHtml(payload.company_name)}`,
-      `📍 <b>Location:</b> ${this.escapeHtml(locations)}${workType}`,
-      payload.employment_type ? `⏱ <b>Type:</b> ${this.escapeHtml(payload.employment_type)}` : null,
-      payload.experience_required ? `🎯 <b>Experience:</b> ${this.escapeHtml(payload.experience_required)}` : null,
-      salaryText,
-      payload.skills && payload.skills.length > 0 ? `🛠 <b>Skills:</b> ${this.escapeHtml(payload.skills.slice(0, 5).join(', '))}` : null,
+      `<b>JOB OPPORTUNITY | ${this.escapeHtml(payload.title.toUpperCase())}</b>`,
+      '',
+      `<b>Organization:</b> ${this.escapeHtml(payload.company_name)}`,
+      `<b>Location:</b> ${this.escapeHtml(locations)}${workType}`,
+      payload.employment_type ? `<b>Employment Type:</b> ${this.escapeHtml(payload.employment_type)}` : null,
+      payload.experience_required ? `<b>Experience Level:</b> ${this.escapeHtml(payload.experience_required)}` : null,
+      salaryText ? `<b>Remuneration:</b> ${this.escapeHtml(salaryText.replace(/💰\s*<b>Salary:<\/b>\s*/i, ''))}` : null,
+      payload.skills && payload.skills.length > 0 ? `<b>Key Competencies:</b> ${this.escapeHtml(payload.skills.slice(0, 5).join(', '))}` : null,
       '',
       hashtags.join(' '),
     ].filter(Boolean) as string[];
