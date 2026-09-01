@@ -152,24 +152,24 @@ export class JobBannerService implements OnModuleInit {
 
     const fontBold = this.fontsLoaded ? 'JobBasketsSans' : 'sans-serif';
 
-    // 2. Headline
+    // 2. Headline - positioned with ample breathing room below logo (which ends at y=228)
     ctx.fillStyle = '#003874';
-    ctx.font = `bold 50px ${fontBold}`;
+    ctx.font = `bold 46px ${fontBold}`;
     const isDirect = (job.company_name || '').toLowerCase().includes('jobbaskets');
-    ctx.fillText(isDirect ? 'We are hiring' : 'Our Client is hiring', 50, 245);
+    ctx.fillText(isDirect ? 'We are hiring' : 'Our Client is hiring', 50, 290);
 
     // 3. Job Title
     const title = job.title || 'Job Opening';
     ctx.fillStyle = '#222222';
-    ctx.font = `bold 56px ${fontBold}`;
-    ctx.fillText(title, 50, 335);
+    ctx.font = `bold 54px ${fontBold}`;
+    ctx.fillText(title, 50, 370);
 
     const titleW = ctx.measureText(title).width;
     ctx.strokeStyle = '#222222';
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(50, 350);
-    ctx.lineTo(50 + Math.min(titleW, 580), 350);
+    ctx.moveTo(50, 385);
+    ctx.lineTo(50 + Math.min(titleW, 580), 385);
     ctx.stroke();
 
     // 4. Key-Value Specifications
@@ -200,7 +200,7 @@ export class JobBannerService implements OnModuleInit {
       { label: 'Job Type', val: employmentText },
     ];
 
-    let y = 430;
+    let y = 455;
     for (const r of rows) {
       ctx.fillStyle = '#222222';
       ctx.font = `bold 32px ${fontBold}`;
@@ -209,7 +209,7 @@ export class JobBannerService implements OnModuleInit {
 
       ctx.fillStyle = '#333333';
       ctx.fillText(r.val, valX, y);
-      y += 58;
+      y += 56;
     }
 
     // 5. Skills
@@ -236,7 +236,7 @@ export class JobBannerService implements OnModuleInit {
       if (metrics.width > 480 && n > 0) {
         ctx.fillText(line.trim(), valX, skillY);
         line = words[n] + ' ';
-        skillY += 46;
+        skillY += 44;
       } else {
         line = testLine;
       }
