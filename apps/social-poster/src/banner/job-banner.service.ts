@@ -222,7 +222,7 @@ export class JobBannerService implements OnModuleInit {
       ? job.skills.slice(0, 5)
       : ['Problem Solving', 'Communication', 'Industry Skills'];
 
-    const skillsText = skills.map((s) => `.${s}`).join(', ');
+    const skillsText = skills.map((s) => s.replace(/^\.+/, '').trim()).join(', ');
 
     const words = skillsText.split(' ');
     let line = '';
