@@ -156,10 +156,10 @@ export class JobBannerService implements OnModuleInit {
     ctx.fillStyle = '#003874';
     ctx.font = `bold 46px ${fontBold}`;
     const isDirect = (job.company_name || '').toLowerCase().includes('jobbaskets');
-    ctx.fillText(isDirect ? 'We are hiring' : 'Our Client is hiring', 50, 290);
+    ctx.fillText(isDirect ? 'We are Hiring !' : 'Our Client is Hiring !', 50, 290);
 
-    // 3. Job Title
-    const title = job.title || 'Job Opening';
+    // 3. Job Title (Capitalized First Letters)
+    const title = this.toTitleCase(job.title || 'Job Opening');
     ctx.fillStyle = '#222222';
     ctx.font = `bold 54px ${fontBold}`;
     ctx.fillText(title, 50, 370);
@@ -450,5 +450,17 @@ export class JobBannerService implements OnModuleInit {
     if (c === 'GBP' || c === '£') return '£';
     if (c === 'AED') return 'AED ';
     return currency;
+  }
+
+  private toTitleCase(str: string): string {
+    return str
+      .split(' ')
+      .map((word) => {
+        if (word.length > 1 && word === word.toUpperCase() && !word.includes('.')) {
+          return word;
+        }
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(' ');
   }
 }
