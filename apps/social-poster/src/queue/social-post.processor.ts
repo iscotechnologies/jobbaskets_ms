@@ -29,8 +29,9 @@ export class SocialPostProcessor extends WorkerHost {
   async process(job: Job<JobPublishedPayloadDto, void, string>): Promise<void> {
     const payload = job.data;
     const jobId = payload.job_id;
+    const postType = payload.post_type || 'standard';
 
-    this.logger.log(`[Worker] Received job "${payload.title}" (Job ID: ${jobId}, BullMQ ID: ${job.id})`);
+    this.logger.log(`[Worker] Received ${postType} job "${payload.title}" (Job ID: ${jobId}, BullMQ ID: ${job.id})`);
 
     // 1. Atomic Deduplication Lock
     const lockAcquired = await this.stateService.acquireJobLock(jobId);

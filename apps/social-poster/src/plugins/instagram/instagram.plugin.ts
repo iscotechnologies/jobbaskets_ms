@@ -53,13 +53,7 @@ export class InstagramPlugin extends BaseSocialPlugin {
   }
 
   format(payload: JobPublishedPayloadDto): FormattedPost {
-    const locations = payload.locations && payload.locations.length > 0 ? payload.locations.join(', ') : 'Multiple Locations';
-    const workType = payload.work_type ? ` (${payload.work_type.toUpperCase()})` : '';
-    const curr = resolveCurrencySymbol(payload.salary_currency);
-    const salaryText = payload.show_salary && payload.salary_min && payload.salary_max
-      ? `💰 Salary: ${curr}${payload.salary_min.toLocaleString()} - ${curr}${payload.salary_max.toLocaleString()}`
-      : null;
-
+    const jobUrl = this.resolveJobUrl(payload);
     const hashtags = ['#Hiring', '#JobOpening', '#JobBaskets', '#Careers', '#TechJobs'];
     if (payload.skills) {
       for (const skill of payload.skills.slice(0, 5)) {
@@ -68,7 +62,32 @@ export class InstagramPlugin extends BaseSocialPlugin {
       }
     }
 
-    const jobUrl = this.resolveJobUrl(payload);
+    // Classified flyer ads: simple caption (details are on the flyer image itself)
+    if (payload.post_type === 'classified') {
+      const lines = [
+        payload.title ? `${payload.title.toUpperCase()}` : 'JOB OPPORTUNITY',
+        '',
+        payload.company_name && payload.company_name !== 'JobBaskets Hiring Partner'
+          ? `Organization: ${payload.company_name}` : null,
+        payload.locations && payload.locations.length > 0
+          ? `Location: ${payload.locations.join(', ')}` : null,
+        '',
+        'To review full specifications and submit your application, visit the link in bio or:',
+        jobUrl,
+        '',
+        hashtags.join(' '),
+      ].filter(Boolean) as string[];
+
+      return { text: lines.join('\n'), hashtags, jobUrl };
+    }
+
+    // Standard job posts: full structured caption
+    const locations = payload.locations && payload.locations.length > 0 ? payload.locations.join(', ') : 'Multiple Locations';
+    const workType = payload.work_type ? ` (${payload.work_type.toUpperCase()})` : '';
+    const curr = resolveCurrencySymbol(payload.salary_currency);
+    const salaryText = payload.show_salary && payload.salary_min && payload.salary_max
+      ? `💰 Salary: ${curr}${payload.salary_min.toLocaleString()} - ${curr}${payload.salary_max.toLocaleString()}`
+      : null;
 
     const lines = [
       `JOB OPPORTUNITY | ${payload.title.toUpperCase()}`,
@@ -97,10 +116,14 @@ export class InstagramPlugin extends BaseSocialPlugin {
     const accountId = this.configService.get<string>('INSTAGRAM_ACCOUNT_ID')!;
     const token = this.configService.get<string>('FB_PAGE_ACCESS_TOKEN')!;
 
-    // Resolve public image URL: payload.image_url, payload.banner_url, or auto-generate dynamic Canva banner
+    // Resolve public image URL
     let imageUrl = payload.image_url || payload.banner_url;
 
-    if (!imageUrl) {
+    if (payload.post_type === 'classified' && imageUrl) {
+      // Classified flyer ad: use the pre-uploaded flyer image directly
+      this.logger.log(`Instagram: Using flyer image for classified ad ${payload.job_id}`);
+    } else if (!imageUrl) {
+      // Standard job: generate dynamic branded banner
       try {
         const bannerResult = await this.bannerService.getOrSaveBanner(payload);
         imageUrl = bannerResult.publicUrl;

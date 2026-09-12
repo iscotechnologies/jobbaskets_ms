@@ -49,13 +49,7 @@ export class TelegramPlugin extends BaseSocialPlugin {
   }
 
   format(payload: JobPublishedPayloadDto): FormattedPost {
-    const locations = payload.locations && payload.locations.length > 0 ? payload.locations.join(', ') : 'Multiple Locations';
-    const workType = payload.work_type ? ` (${payload.work_type.toUpperCase()})` : '';
-    const curr = resolveCurrencySymbol(payload.salary_currency);
-    const salaryText = payload.show_salary && payload.salary_min && payload.salary_max
-      ? `💰 <b>Salary:</b> ${curr}${payload.salary_min.toLocaleString()} - ${curr}${payload.salary_max.toLocaleString()}`
-      : null;
-
+    const jobUrl = this.resolveJobUrl(payload);
     const hashtags = ['#Hiring', '#JobOpening', '#JobBaskets'];
     if (payload.skills) {
       for (const skill of payload.skills.slice(0, 3)) {
@@ -64,7 +58,29 @@ export class TelegramPlugin extends BaseSocialPlugin {
       }
     }
 
-    const jobUrl = this.resolveJobUrl(payload);
+    // Classified flyer ads: simple HTML caption (details are on the flyer image itself)
+    if (payload.post_type === 'classified') {
+      const lines = [
+        `<b>${payload.title ? this.escapeHtml(payload.title.toUpperCase()) : 'JOB OPPORTUNITY'}</b>`,
+        '',
+        payload.company_name && payload.company_name !== 'JobBaskets Hiring Partner'
+          ? `<b>Organization:</b> ${this.escapeHtml(payload.company_name)}` : null,
+        payload.locations && payload.locations.length > 0
+          ? `<b>Location:</b> ${this.escapeHtml(payload.locations.join(', '))}` : null,
+        '',
+        hashtags.join(' '),
+      ].filter(Boolean) as string[];
+
+      return { text: lines.join('\n'), hashtags, jobUrl };
+    }
+
+    // Standard job posts: full structured HTML caption
+    const locations = payload.locations && payload.locations.length > 0 ? payload.locations.join(', ') : 'Multiple Locations';
+    const workType = payload.work_type ? ` (${payload.work_type.toUpperCase()})` : '';
+    const curr = resolveCurrencySymbol(payload.salary_currency);
+    const salaryText = payload.show_salary && payload.salary_min && payload.salary_max
+      ? `💰 <b>Salary:</b> ${curr}${payload.salary_min.toLocaleString()} - ${curr}${payload.salary_max.toLocaleString()}`
+      : null;
 
     const lines = [
       `<b>JOB OPPORTUNITY | ${this.escapeHtml(payload.title.toUpperCase())}</b>`,
@@ -89,21 +105,38 @@ export class TelegramPlugin extends BaseSocialPlugin {
   protected async executePublish(payload: JobPublishedPayloadDto, formatted: FormattedPost): Promise<PublishResult> {
     const chatId = this.configService.get<string>('TELEGRAM_CHAT_ID')!;
 
-    // 1. Generate dynamic Canva-style branded banner buffer
     let photoBuffer: Buffer | undefined;
-    try {
-      photoBuffer = await this.bannerService.generateBanner(payload);
-    } catch (err) {
-      this.logger.warn(`Banner generation failed: ${err}. Sending without dynamic banner...`);
+    let photoUrl: string | undefined;
+
+    if (payload.post_type === 'classified' && payload.image_url) {
+      // Classified flyer ad: download and use the pre-uploaded flyer image directly
+      try {
+        const response = await fetch(payload.image_url);
+        if (response.ok) {
+          photoBuffer = Buffer.from(await response.arrayBuffer());
+          this.logger.log(`Telegram: Using flyer image for classified ad ${payload.job_id}`);
+        }
+      } catch (err) {
+        this.logger.warn(`Telegram: Failed to download flyer image: ${err}. Falling back to URL...`);
+        photoUrl = payload.image_url;
+      }
+    } else {
+      // Standard job: generate dynamic branded banner
+      try {
+        photoBuffer = await this.bannerService.generateBanner(payload);
+      } catch (err) {
+        this.logger.warn(`Banner generation failed: ${err}. Sending without dynamic banner...`);
+      }
+      photoUrl = payload.banner_url || payload.image_url || payload.company_logo;
     }
 
-    // 2. Publish with banner to Telegram
+    // Publish to Telegram
     const res = await this.botClient.sendMessage({
       chatId,
       text: formatted.text,
       applyUrl: formatted.jobUrl,
       photoBuffer,
-      photoUrl: payload.banner_url || payload.image_url || payload.company_logo,
+      photoUrl,
     });
 
     const postUrl = res.chatUsername

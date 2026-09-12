@@ -9,6 +9,10 @@ export class JobPublishedPayloadDto {
   @IsString()
   uuid!: string;
 
+  @IsOptional()
+  @IsString()
+  post_type?: string;
+
   @IsNotEmpty()
   @IsString()
   title!: string;
