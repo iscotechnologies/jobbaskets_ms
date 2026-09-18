@@ -19,7 +19,7 @@ services:
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-jb:social:}
     volumes:
-      - ${STORAGE_VOLUME_NAME:-test_storage-data-test}:/app/public_storage
+      - public_storage:/app/public_storage
     networks:
       - jb-network
 
@@ -29,6 +29,6 @@ networks:
     name: ${DOCKER_NETWORK_NAME:-test_jobbaskets-network-test}
 
 volumes:
-  test_storage-data-test:
+  public_storage:
     external: true
     name: ${STORAGE_VOLUME_NAME:-test_storage-data-test}
