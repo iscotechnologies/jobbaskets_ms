@@ -49,6 +49,11 @@ export class FacebookPlugin extends BaseSocialPlugin {
       || this.configService.get<string>('APP_URL')
       || 'https://jobbaskets.com';
     const baseUrl = frontendBase.replace(/\/+$/, '');
+
+    if (payload.post_type === 'classified') {
+      return `${baseUrl}/classified-ads?ad=${payload.uuid}`;
+    }
+    
     return `${baseUrl}/jobs/${payload.uuid}`;
   }
 
