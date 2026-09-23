@@ -152,31 +152,7 @@ export class JobBannerService implements OnModuleInit {
 
     const fontBold = this.fontsLoaded ? 'JobBasketsSans' : 'sans-serif';
 
-    // 2. Headline - positioned with ample breathing room below logo (which ends at y=228)
-    ctx.fillStyle = '#003874';
-    ctx.font = `bold 46px ${fontBold}`;
-    const isDirect = (job.company_name || '').toLowerCase().includes('jobbaskets');
-    ctx.fillText(isDirect ? 'We are Hiring !' : 'Our Client is Hiring !', 50, 290);
-
-    // 3. Job Title (Capitalized First Letters)
-    const title = this.toTitleCase(job.title || 'Job Opening');
-    ctx.fillStyle = '#222222';
-    ctx.font = `bold 54px ${fontBold}`;
-    ctx.fillText(title, 50, 370);
-
-    const titleW = ctx.measureText(title).width;
-    ctx.strokeStyle = '#222222';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(50, 385);
-    ctx.lineTo(50 + Math.min(titleW, 580), 385);
-    ctx.stroke();
-
-    // 4. Key-Value Specifications
-    const labelX = 50;
-    const colonX = 330;
-    const valX = 355;
-
+    // 2. Format values
     const locationText = (job.locations && job.locations.length > 0)
       ? job.locations.join(', ')
       : 'Multiple Locations';
@@ -184,65 +160,56 @@ export class JobBannerService implements OnModuleInit {
     const curr = resolveCurrencySymbol(job.salary_currency);
     let salaryText = 'Best in Industry';
     if (job.show_salary && job.salary_min && job.salary_max) {
-      salaryText = `${curr} ${job.salary_min.toLocaleString()} - ${curr} ${job.salary_max.toLocaleString()}`;
+      const typeSuffix = job.salary_type ? ` /${job.salary_type.replace(/ly$/, '')}` : '';
+      salaryText = `${curr}${job.salary_min.toLocaleString()} - ${curr}${job.salary_max.toLocaleString()}${typeSuffix}`;
     } else if (job.show_salary && job.salary_min) {
-      salaryText = `${curr} ${job.salary_min.toLocaleString()}+`;
+      salaryText = `${curr}${job.salary_min.toLocaleString()}+`;
     }
+
+    const expText = job.experience_required
+      ? (job.experience_required.toLowerCase().includes('year') ? job.experience_required : `${job.experience_required} Years`)
+      : 'Freshers / Experienced';
 
     const employmentText = [job.employment_type, job.work_type ? `(${job.work_type})` : null]
       .filter(Boolean)
-      .join(' ') || 'Full-Time';
+      .join(' ') || 'Full Time';
+
+    const title = this.toTitleCase(job.title || 'Job Opening');
+
+    // 3. Key-Value Specifications
+    const labelX = 100;
+    const colonX = 490;
+    const valX = 520;
+    const maxValWidth = 530;
 
     const rows = [
       { label: 'Company Name', val: job.company_name || 'JobBaskets Partner' },
-      { label: 'Location', val: locationText },
+      { label: 'Job Position', val: title },
+      { label: 'Job Location', val: locationText },
+      { label: 'Experience', val: expText },
       { label: 'Salary Range', val: salaryText },
       { label: 'Job Type', val: employmentText },
     ];
 
-    let y = 455;
+    let y = 520;
+    const lineSpacing = 68;
+
     for (const r of rows) {
-      ctx.fillStyle = '#222222';
-      ctx.font = `bold 32px ${fontBold}`;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `bold 38px ${fontBold}`;
       ctx.fillText(r.label, labelX, y);
       ctx.fillText(':', colonX, y);
 
-      ctx.fillStyle = '#333333';
-      ctx.fillText(r.val, valX, y);
-      y += 56;
-    }
-
-    // 5. Skills
-    ctx.fillStyle = '#222222';
-    ctx.font = `bold 32px ${fontBold}`;
-    ctx.fillText('Skill Required', labelX, y);
-    ctx.fillText(':', colonX, y);
-
-    const skills = (job.skills && job.skills.length > 0)
-      ? job.skills.slice(0, 5)
-      : ['Problem Solving', 'Communication', 'Industry Skills'];
-
-    const skillsText = skills.map((s) => s.replace(/^\.+/, '').trim()).join(', ');
-
-    const words = skillsText.split(' ');
-    let line = '';
-    let skillY = y;
-    ctx.fillStyle = '#333333';
-    ctx.font = `bold 30px ${fontBold}`;
-
-    for (let n = 0; n < words.length; n++) {
-      const testLine = line + words[n] + ' ';
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > 480 && n > 0) {
-        ctx.fillText(line.trim(), valX, skillY);
-        line = words[n] + ' ';
-        skillY += 44;
-      } else {
-        line = testLine;
+      let valText = r.val;
+      let valFont = 38;
+      ctx.font = `bold ${valFont}px ${fontBold}`;
+      while (ctx.measureText(valText).width > maxValWidth && valFont > 22) {
+        valFont -= 2;
+        ctx.font = `bold ${valFont}px ${fontBold}`;
       }
-    }
-    if (line) {
-      ctx.fillText(line.trim(), valX, skillY);
+
+      ctx.fillText(valText, valX, y);
+      y += lineSpacing;
     }
 
     return canvas.toBuffer('image/png');
