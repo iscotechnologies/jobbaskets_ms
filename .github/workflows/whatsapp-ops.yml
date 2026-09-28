@@ -83,7 +83,8 @@ jobs:
                   "salary_currency": "INR",
                   "show_salary": true,
                   "skills": ["React Native", "TypeScript", "Redux"],
-                  "target_platforms": ["whatsapp"]
+                  "target_platforms": ["whatsapp"],
+                  "force": true
                 }'
               sleep 5
               echo ""
@@ -148,7 +149,8 @@ jobs:
                       'skills' => \$job->skills ? \$job->skills->pluck('skill_name')->filter()->all() : [],
                       'experience_required' => \$job->experience_required,
                       'posted_at' => \$job->posted_at?->toISOString() ?? now()->toISOString(),
-                      'target_platforms' => ['whatsapp']
+                      'target_platforms' => ['whatsapp'],
+                      'force' => true
                     ];
                     echo '###JOB_PAYLOAD_START###' . json_encode(\$p) . '###JOB_PAYLOAD_END###' . PHP_EOL;
                   }

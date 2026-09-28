@@ -15,9 +15,11 @@ export class SocialPostQueueService {
    * Enqueue job for background posting across social media platforms
    */
   async enqueueJobPosting(payload: JobPublishedPayloadDto): Promise<string> {
-    const customJobId = `job_post_${payload.job_id}`;
+    const customJobId = payload.force
+      ? `job_post_${payload.job_id}_${Date.now()}`
+      : `job_post_${payload.job_id}`;
 
-    this.logger.log(`Enqueuing social post job: ${payload.title} (ID: ${payload.job_id})`);
+    this.logger.log(`Enqueuing social post job: ${payload.title} (ID: ${payload.job_id}) [force=${!!payload.force}]`);
 
     const job = await this.socialQueue.add(JOB_PUBLISH_TASK, payload, {
       jobId: customJobId,

@@ -34,10 +34,16 @@ export class SocialPostProcessor extends WorkerHost {
     this.logger.log(`[Worker] Received ${postType} job "${payload.title}" (Job ID: ${jobId}, BullMQ ID: ${job.id})`);
 
     // 1. Atomic Deduplication Lock
-    const lockAcquired = await this.stateService.acquireJobLock(jobId);
+    let lockAcquired = await this.stateService.acquireJobLock(jobId);
     if (!lockAcquired) {
-      this.logger.warn(`[Worker] Job ${jobId} is already locked or in-progress. Skipping duplicate execution.`);
-      return;
+      if (payload.force) {
+        await this.stateService.releaseJobLock(jobId);
+        lockAcquired = await this.stateService.acquireJobLock(jobId);
+      }
+      if (!lockAcquired) {
+        this.logger.warn(`[Worker] Job ${jobId} is already locked or in-progress. Skipping duplicate execution.`);
+        return;
+      }
     }
 
     try {
@@ -53,10 +59,12 @@ export class SocialPostProcessor extends WorkerHost {
 
       // 3. Dispatch to each plugin independently
       for (const platformId of targetPlatforms) {
-        const isPosted = await this.stateService.isPlatformPosted(jobId, platformId as any);
-        if (isPosted) {
-          this.logger.log(`[Worker] Platform [${platformId}] already posted for job ${jobId}. Skipping.`);
-          continue;
+        if (!payload.force) {
+          const isPosted = await this.stateService.isPlatformPosted(jobId, platformId as any);
+          if (isPosted) {
+            this.logger.log(`[Worker] Platform [${platformId}] already posted for job ${jobId}. Skipping.`);
+            continue;
+          }
         }
 
         try {

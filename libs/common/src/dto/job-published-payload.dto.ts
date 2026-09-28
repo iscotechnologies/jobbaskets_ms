@@ -91,4 +91,8 @@ export class JobPublishedPayloadDto {
   @IsArray()
   @IsString({ each: true })
   target_platforms?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
 }
