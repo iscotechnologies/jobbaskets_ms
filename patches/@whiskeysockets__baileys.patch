@@ -32,14 +32,13 @@ index b341e9d4c78de85f77a32869fb81c83e54788e0b..1ad1c1b8c25d1e459926460447698315
      audio: 'Audio',
      document: 'Document',
 diff --git a/lib/Socket/messages-send.js b/lib/Socket/messages-send.js
-index d61e064d01252fb1aaae4bf7b0f295df8a3c4def..a3757b6f1f13f321a7dfe49ee7e70a6f38409eaf 100644
+index d61e064d01252fb1aaae4bf7b0f295df8a3c4def..12c6c584a5e188ed343a418a78e95b38278e7b8e 100644
 --- a/lib/Socket/messages-send.js
 +++ b/lib/Socket/messages-send.js
-@@ -472,10 +472,12 @@ export const makeMessagesSocket = (config) => {
-             }
+@@ -473,9 +473,12 @@ export const makeMessagesSocket = (config) => {
              if (isNewsletter) {
                  const patched = patchMessageBeforeSending ? await patchMessageBeforeSending(message, []) : message;
--                const bytes = encodeNewsletterMessage(patched);
+                 const bytes = encodeNewsletterMessage(patched);
 +                if (additionalNodes && additionalNodes.length > 0) {
 +                    binaryNodeContent.push(...additionalNodes);
 +                }
