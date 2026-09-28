@@ -1,0 +1,99 @@
+diff --git a/lib/Defaults/index.d.ts b/lib/Defaults/index.d.ts
+index ef8d208711e1e3d485631ad7fa5cda92ab99b87b..feb401a59d6063422470f8bc109a33d6a8e564f2 100644
+--- a/lib/Defaults/index.d.ts
++++ b/lib/Defaults/index.d.ts
+@@ -38,6 +38,9 @@ export declare const DEFAULT_CONNECTION_CONFIG: SocketConfig;
+ export declare const MEDIA_PATH_MAP: {
+     [T in MediaType]?: string;
+ };
++export declare const NEWSLETTER_MEDIA_PATH_MAP: {
++    [T in MediaType]?: string;
++};
+ export declare const MEDIA_HKDF_KEY_MAPPING: {
+     audio: string;
+     document: string;
+diff --git a/lib/Defaults/index.js b/lib/Defaults/index.js
+index b341e9d4c78de85f77a32869fb81c83e54788e0b..1ad1c1b8c25d1e4599264604476983155446b76e 100644
+--- a/lib/Defaults/index.js
++++ b/lib/Defaults/index.js
+@@ -93,6 +93,14 @@ export const MEDIA_PATH_MAP = {
+     'md-msg-hist': '/mms/md-app-state',
+     'biz-cover-photo': '/pps/biz-cover-photo'
+ };
++export const NEWSLETTER_MEDIA_PATH_MAP = {
++    image: '/newsletter/newsletter-image',
++    video: '/newsletter/newsletter-video',
++    document: '/newsletter/newsletter-document',
++    audio: '/newsletter/newsletter-audio',
++    sticker: '/newsletter/newsletter-image',
++    'thumbnail-link': '/newsletter/newsletter-thumbnail-link'
++};
+ export const MEDIA_HKDF_KEY_MAPPING = {
+     audio: 'Audio',
+     document: 'Document',
+diff --git a/lib/Socket/messages-send.js b/lib/Socket/messages-send.js
+index d61e064d01252fb1aaae4bf7b0f295df8a3c4def..a3757b6f1f13f321a7dfe49ee7e70a6f38409eaf 100644
+--- a/lib/Socket/messages-send.js
++++ b/lib/Socket/messages-send.js
+@@ -472,10 +472,12 @@ export const makeMessagesSocket = (config) => {
+             }
+             if (isNewsletter) {
+                 const patched = patchMessageBeforeSending ? await patchMessageBeforeSending(message, []) : message;
+-                const bytes = encodeNewsletterMessage(patched);
++                if (additionalNodes && additionalNodes.length > 0) {
++                    binaryNodeContent.push(...additionalNodes);
++                }
+                 binaryNodeContent.push({
+                     tag: 'plaintext',
+-                    attrs: {},
++                    attrs: extraAttrs,
+                     content: bytes
+                 });
+                 const stanza = {
+diff --git a/lib/Utils/messages-media.js b/lib/Utils/messages-media.js
+index a3d2fa6bae6af021a4a50b4270584fed08623f34..e0f1a9b2c5ccbf59487a5fa1f30f59cb9dfe25d9 100644
+--- a/lib/Utils/messages-media.js
++++ b/lib/Utils/messages-media.js
+@@ -8,7 +8,7 @@ import { join } from 'path';
+ import { Readable, Transform } from 'stream';
+ import { URL } from 'url';
+ import { proto } from '../../WAProto/index.js';
+-import { DEFAULT_ORIGIN, MEDIA_HKDF_KEY_MAPPING, MEDIA_PATH_MAP } from '../Defaults/index.js';
++import { DEFAULT_ORIGIN, MEDIA_HKDF_KEY_MAPPING, MEDIA_PATH_MAP, NEWSLETTER_MEDIA_PATH_MAP } from '../Defaults/index.js';
+ import { getBinaryNodeChild, getBinaryNodeChildBuffer, jidNormalizedUser } from '../WABinary/index.js';
+ import { aesDecryptGCM, aesEncryptGCM, hkdf } from './crypto.js';
+ import { generateMessageIDV2 } from './generics.js';
+@@ -641,7 +641,7 @@ const uploadMedia = async (params, logger) => {
+     }
+ };
+ export const getWAUploadToServer = ({ customUploadHosts, fetchAgent, logger, options }, refreshMediaConn) => {
+-    return async (filePath, { mediaType, fileEncSha256B64, timeoutMs }) => {
++    return async (filePath, { mediaType, fileEncSha256B64, timeoutMs, newsletter }) => {
+         // send a query JSON to obtain the url & auth token to upload our media
+         let uploadInfo = await refreshMediaConn(false);
+         let urls;
+@@ -662,7 +662,9 @@ export const getWAUploadToServer = ({ customUploadHosts, fetchAgent, logger, opt
+         for (const { hostname } of hosts) {
+             logger.debug(`uploading to "${hostname}"`);
+             const auth = encodeURIComponent(uploadInfo.auth);
+-            const url = `https://${hostname}${MEDIA_PATH_MAP[mediaType]}/${fileEncSha256B64}?auth=${auth}&token=${fileEncSha256B64}`;
++            const mediaPathMap = newsletter ? NEWSLETTER_MEDIA_PATH_MAP : MEDIA_PATH_MAP;
++            const serverThumb = newsletter ? '&server_thumb_gen=1' : '';
++            const url = `https://${hostname}${mediaPathMap[mediaType]}/${fileEncSha256B64}?auth=${auth}&token=${fileEncSha256B64}${serverThumb}`;
+             let result;
+             try {
+                 result = await uploadMedia({
+diff --git a/lib/Utils/messages.js b/lib/Utils/messages.js
+index 247b1f12d912923d4ad032e6572fc76cd958e51b..dae8bf6d4047c713d5830a8c2274d78e202e6f70 100644
+--- a/lib/Utils/messages.js
++++ b/lib/Utils/messages.js
+@@ -104,7 +104,8 @@ export const prepareWAMessageMedia = async (message, options) => {
+         const { mediaUrl, directPath } = await options.upload(filePath, {
+             fileEncSha256B64: fileSha256B64,
+             mediaType: mediaType,
+-            timeoutMs: options.mediaUploadTimeoutMs
++            timeoutMs: options.mediaUploadTimeoutMs,
++            newsletter: isNewsletter
+         });
+         await fs.unlink(filePath);
+         const obj = WAProto.Message.fromObject({

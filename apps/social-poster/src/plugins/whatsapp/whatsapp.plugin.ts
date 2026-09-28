@@ -157,11 +157,9 @@ export class WhatsAppPlugin extends BaseSocialPlugin {
       }
     }
 
-    // NOTE: Baileys sendMessage with images to newsletter JIDs may silently fail.
-    // Sending text-only for now to verify channel delivery works.
     const res = await this.whatsAppClient.publishToChannel({
       caption: formatted.text,
-      imageBuffer: undefined, // TODO: Re-enable once newsletter image delivery is confirmed
+      imageBuffer: photoBuffer,
     });
 
     return {

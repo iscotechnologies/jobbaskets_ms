@@ -3,3 +3,5 @@ allowBuilds:
   msgpackr-extract: true
   protobufjs: true
   unrs-resolver: true
+patchedDependencies:
+  '@whiskeysockets/baileys': patches/@whiskeysockets__baileys.patch

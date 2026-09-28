@@ -10,6 +10,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Copy root configuration files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml nest-cli.json tsconfig*.json ./
+COPY patches ./patches
 
 # Copy shared libraries and microservices
 COPY libs ./libs
@@ -38,6 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy manifests and install production-only dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches ./patches
 RUN pnpm install --prod --frozen-lockfile
 
 # Copy compiled artifacts and static assets (official logo)

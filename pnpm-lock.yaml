@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@whiskeysockets/baileys': cc82cab449d8ef80f292ebeb2938dca17341ed2c1eb42b29f7595d37794fc6c8
+
 importers:
 
   .:
@@ -28,7 +31,7 @@ importers:
         version: 11.2.1(@nestjs/common@11.2.1(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.2.1)(supports-color@8.1.1)
       '@whiskeysockets/baileys':
         specifier: 7.0.0-rc14
-        version: 7.0.0-rc14(sharp@0.35.4(@types/node@24.13.3))(supports-color@8.1.1)
+        version: 7.0.0-rc14(patch_hash=cc82cab449d8ef80f292ebeb2938dca17341ed2c1eb42b29f7595d37794fc6c8)(sharp@0.35.4(@types/node@24.13.3))(supports-color@8.1.1)
       bullmq:
         specifier: ^6.1.2
         version: 6.1.2(ioredis@6.0.0(supports-color@8.1.1))
@@ -5070,7 +5073,7 @@ snapshots:
       '@webassemblyjs/ast': 1.14.1
       '@xtuc/long': 4.2.2
 
-  '@whiskeysockets/baileys@7.0.0-rc14(sharp@0.35.4(@types/node@24.13.3))(supports-color@8.1.1)':
+  '@whiskeysockets/baileys@7.0.0-rc14(patch_hash=cc82cab449d8ef80f292ebeb2938dca17341ed2c1eb42b29f7595d37794fc6c8)(sharp@0.35.4(@types/node@24.13.3))(supports-color@8.1.1)':
     dependencies:
       '@cacheable/node-cache': 1.7.6
       '@hapi/boom': 9.1.4
