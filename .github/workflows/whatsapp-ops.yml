@@ -91,25 +91,85 @@ jobs:
               echo "=== Recent Logs ==="
               docker logs --tail 30 jobbaskets_social_poster
             elif [ "${{ github.event.inputs.action }}" = "publish-recent-5" ]; then
-              echo "=== Dispatching Last 5 Published Jobs ==="
+              echo "=== Dispatching Last 5 Published Jobs to WhatsApp ==="
+              SECRET=$(grep "INTERNAL_SERVICE_SECRET" .env | cut -d '=' -f2)
               API_CONTAINER=$(docker ps --filter "name=api" --format "{{.Names}}" | grep -v "redis" | head -n 1)
               echo "Found API container: $API_CONTAINER"
               if [ -n "$API_CONTAINER" ]; then
-                docker exec $API_CONTAINER php artisan tinker --execute="
-                  \$jobs = \App\Models\JobPost::where('posting_status', 'publish')->latest('id')->take(5)->get();
+                PAYLOADS=$(docker exec $API_CONTAINER php artisan tinker --execute="
+                  \$jobs = \App\Models\JobPost::with(['company', 'consultancy', 'cities', 'city', 'skills'])
+                    ->where('posting_status', 'publish')
+                    ->latest('id')
+                    ->take(5)
+                    ->get();
+                  
                   foreach (\$jobs as \$job) {
-                    echo 'Dispatching Job ID ' . \$job->id . ': ' . \$job->title . PHP_EOL;
-                    \App\Jobs\PublishJobToSocialPoster::dispatchSync(\$job->id);
+                    \$locations = [];
+                    if (\$job->cities && \$job->cities->isNotEmpty()) {
+                      \$locations = \$job->cities->map(fn (\$c) => \$c->city_name ?? \$c->name)->filter()->values()->all();
+                    }
+                    if (empty(\$locations) && \$job->city) {
+                      \$locations[] = \$job->city->city_name ?? \$job->city->name;
+                    }
+                    
+                    \$companyName = \$job->company?->company_name
+                      ?? \$job->consultancy?->consultancy_name
+                      ?? \$job->consultancy?->name
+                      ?? 'JobBaskets Hiring Partner';
+                    
+                    \$companyLogo = \$job->company?->logo_url
+                      ?? \$job->company?->logo
+                      ?? \$job->consultancy?->logo_url
+                      ?? \$job->consultancy?->logo;
+                    
+                    \$desc = \$job->description ? trim(html_entity_decode(strip_tags(\$job->description))) : null;
+                    \$empType = \$job->employment_type ? str_replace('_', ' ', ucwords(\$job->employment_type, '_')) : null;
+                    \$wType = \$job->work_type ? str_replace('_', ' ', ucwords(\$job->work_type, '_')) : null;
+                    
+                    \$p = [
+                      'job_id' => (int) \$job->id,
+                      'uuid' => (string) \$job->uuid,
+                      'post_type' => (string) (\$job->post_type ?? 'standard'),
+                      'title' => (string) \$job->title,
+                      'description' => \$desc,
+                      'company_name' => (string) \$companyName,
+                      'company_logo' => \$companyLogo,
+                      'image_url' => \$job->post_type === 'classified' ? \$job->ad_image_url : null,
+                      'employment_type' => \$empType,
+                      'work_type' => \$wType,
+                      'locations' => \$locations,
+                      'salary_min' => \$job->salary_min ? (float) \$job->salary_min : null,
+                      'salary_max' => \$job->salary_max ? (float) \$job->salary_max : null,
+                      'salary_currency' => '₹',
+                      'salary_type' => \$job->salary_type,
+                      'show_salary' => (bool) \$job->show_salary,
+                      'skills' => \$job->skills ? \$job->skills->pluck('skill_name')->filter()->all() : [],
+                      'experience_required' => \$job->experience_required,
+                      'posted_at' => \$job->posted_at?->toISOString() ?? now()->toISOString(),
+                      'target_platforms' => ['whatsapp']
+                    ];
+                    echo '###JOB_PAYLOAD_START###' . json_encode(\$p) . '###JOB_PAYLOAD_END###' . PHP_EOL;
                   }
-                "
+                ")
+
+                echo "$PAYLOADS" | grep "###JOB_PAYLOAD_START###" | while read -r line; do
+                  JSON_DATA=$(echo "$line" | sed 's/.*###JOB_PAYLOAD_START###//' | sed 's/###JOB_PAYLOAD_END###.*//')
+                  JOB_TITLE=$(echo "$JSON_DATA" | grep -o '"title":"[^"]*"' | cut -d':' -f2 | tr -d '"')
+                  echo "Posting to WhatsApp: $JOB_TITLE"
+                  curl -s -X POST http://127.0.0.1:3001/api/v1/jobs/publish \
+                    -H "Content-Type: application/json" \
+                    -H "X-Internal-Service-Key: $SECRET" \
+                    -d "$JSON_DATA"
+                  echo ""
+                  sleep 4
+                done
               else
-                echo "Could not find API container. Listing all containers:"
-                docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
+                echo "Could not find API container."
               fi
-              sleep 12
+              sleep 8
               echo ""
               echo "=== Recent Social Poster Logs ==="
-              docker logs --tail 50 jobbaskets_social_poster
+              docker logs --tail 40 jobbaskets_social_poster
             elif [ "${{ github.event.inputs.action }}" = "logs" ]; then
               docker logs --tail 100 jobbaskets_social_poster
             fi
