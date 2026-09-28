@@ -12,6 +12,8 @@ on:
           - status
           - pair
           - logs
+          - update-config
+          - test-publish
 
 jobs:
   run-op:
@@ -41,6 +43,49 @@ jobs:
               echo ""
               echo "=== WhatsApp Status ==="
               curl -s http://127.0.0.1:3001/api/v1/whatsapp/status
+              echo ""
+              echo "=== Recent Logs ==="
+              docker logs --tail 30 jobbaskets_social_poster
+            elif [ "${{ github.event.inputs.action }}" = "update-config" ]; then
+              echo "=== Updating WHATSAPP_CHANNEL_URL in .env ==="
+              if grep -q "WHATSAPP_CHANNEL_URL" .env; then
+                sed -i 's|^WHATSAPP_CHANNEL_URL=.*|WHATSAPP_CHANNEL_URL=https://whatsapp.com/channel/0029Vb7nef0LdQekQKYLCC0Z|' .env
+              else
+                echo "WHATSAPP_CHANNEL_URL=https://whatsapp.com/channel/0029Vb7nef0LdQekQKYLCC0Z" >> .env
+              fi
+              echo "Restarting social-poster container..."
+              docker compose up -d --force-recreate
+              sleep 6
+              echo "=== WhatsApp Status after reload ==="
+              curl -s http://127.0.0.1:3001/api/v1/whatsapp/status
+              echo ""
+              echo "=== Recent Logs ==="
+              docker logs --tail 30 jobbaskets_social_poster
+            elif [ "${{ github.event.inputs.action }}" = "test-publish" ]; then
+              echo "=== Testing Social Publish to WhatsApp Channel ==="
+              SECRET=$(grep "INTERNAL_SERVICE_SECRET" .env | cut -d '=' -f2)
+              curl -s -X POST http://127.0.0.1:3001/api/v1/jobs/publish \
+                -H "Content-Type: application/json" \
+                -H "X-Internal-Service-Key: $SECRET" \
+                -d '{
+                  "job_id": 999999,
+                  "uuid": "test-wa-live-001",
+                  "title": "Senior React Native Developer",
+                  "company_name": "JobBaskets Technologies",
+                  "locations": ["Chennai", "Bangalore"],
+                  "employment_type": "Full Time",
+                  "experience_required": "3-5 Years",
+                  "salary_min": 50000,
+                  "salary_max": 80000,
+                  "salary_currency": "INR",
+                  "show_salary": true,
+                  "skills": ["React Native", "TypeScript", "Redux"],
+                  "target_platforms": ["whatsapp"]
+                }'
+              sleep 5
+              echo ""
+              echo "=== Post Status ==="
+              curl -s http://127.0.0.1:3001/api/v1/jobs/999999/social-status
               echo ""
               echo "=== Recent Logs ==="
               docker logs --tail 30 jobbaskets_social_poster
