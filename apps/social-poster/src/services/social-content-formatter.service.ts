@@ -171,14 +171,7 @@ export class SocialContentFormatterService {
     return tags;
   }
 
-  private resolveCurrency(currency?: string): string {
-    if (!currency) return '₹';
-    const c = currency.trim().toUpperCase();
-    if (c === 'INR' || c === 'RS' || c === 'RS.' || c === '₹') return '₹';
-    if (c === 'USD' || c === '$') return '$';
-    if (c === 'EUR' || c === '€') return '€';
-    if (c === 'GBP' || c === '£') return '£';
-    if (c === 'AED') return 'AED ';
-    return currency;
+  private resolveCurrency(_currency?: string): string {
+    return '₹';
   }
 }
