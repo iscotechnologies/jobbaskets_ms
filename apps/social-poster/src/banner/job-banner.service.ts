@@ -178,9 +178,9 @@ export class JobBannerService implements OnModuleInit {
 
     // 3. Key-Value Specifications
     const labelX = 100;
-    const colonX = 490;
-    const valX = 520;
-    const maxValWidth = 530;
+    const colonX = 390;
+    const valX = 420;
+    const maxValWidth = 630;
 
     const rows = [
       { label: 'Company Name', val: job.company_name || 'JobBaskets Partner' },
