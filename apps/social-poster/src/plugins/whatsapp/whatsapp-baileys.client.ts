@@ -98,10 +98,6 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
     if (customPath) {
       return path.resolve(customPath);
     }
-    const publicStorage = '/app/public_storage';
-    if (fs.existsSync(publicStorage)) {
-      return path.join(publicStorage, 'whatsapp_auth');
-    }
     const storagePath = this.configService.get<string>('STORAGE_PATH') || path.join(process.cwd(), 'storage');
     return path.join(storagePath, 'whatsapp_auth');
   }
@@ -135,8 +131,14 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
     this.isInitializing = true;
 
     try {
-      const authDir = this.getAuthDir();
-      fs.mkdirSync(authDir, { recursive: true });
+      let authDir = this.getAuthDir();
+      try {
+        fs.mkdirSync(authDir, { recursive: true });
+      } catch (err) {
+        this.logger.warn(`Could not create ${authDir} (${err}), falling back to /tmp/whatsapp_auth`);
+        authDir = '/tmp/whatsapp_auth';
+        fs.mkdirSync(authDir, { recursive: true });
+      }
 
       const pinoLogger = pino({ level: 'silent' });
       const { state, saveCreds } = await useMultiFileAuthState(authDir);

@@ -25,6 +25,7 @@ services:
       - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-jb:social:}
     volumes:
       - public_storage:/app/public_storage
+      - whatsapp_auth_data:/app/storage/whatsapp_auth
     networks:
       - jb-network
 
@@ -37,3 +38,5 @@ volumes:
   public_storage:
     external: true
     name: ${STORAGE_VOLUME_NAME:-test_storage-data-test}
+  whatsapp_auth_data:
+
