@@ -230,23 +230,26 @@ export class WhatsAppBaileysClient implements OnModuleInit, OnModuleDestroy {
   }
 
   public async requestPairingCode(phone?: string): Promise<string> {
-    if (!this.sock) {
-      await this.initSocket();
-    }
-    if (!this.sock) {
-      throw new Error('WhatsApp socket is not initialized');
-    }
-
     const targetPhone = this.sanitizePhoneNumber(phone || this.getPhoneNumber() || '');
     if (!targetPhone) {
       throw new Error('No phone number provided for WhatsApp pairing');
     }
 
-    this.logger.log(`[WhatsApp] Requesting 8-digit pairing code for number: ${targetPhone}...`);
-    const code = await this.sock.requestPairingCode(targetPhone);
-    this.pairingCode = code;
+    if (!this.sock) {
+      await this.initSocket();
+      await new Promise((r) => setTimeout(r, 2000));
+    }
 
-    this.logger.log(`
+    if (!this.sock) {
+      throw new Error('WhatsApp socket is not initialized');
+    }
+
+    try {
+      this.logger.log(`[WhatsApp] Requesting 8-digit pairing code for number: ${targetPhone}...`);
+      const code = await this.sock.requestPairingCode(targetPhone);
+      this.pairingCode = code;
+
+      this.logger.log(`
 ===============================================================
 [WhatsApp Channel Integration]
 PAIRING CODE FOR +${targetPhone}:  [ ${code} ]
@@ -259,7 +262,33 @@ Instructions to link your WhatsApp:
 ===============================================================
 `);
 
-    return code;
+      return code;
+    } catch (err: any) {
+      this.logger.warn(`[WhatsApp] Pairing request failed (${err?.message || err}). Reinitializing socket...`);
+      this.clearAuth();
+      await this.initSocket();
+      await new Promise((r) => setTimeout(r, 3000));
+      if (!this.sock) {
+        throw new Error('WhatsApp socket failed to initialize after retry');
+      }
+      const code = await this.sock.requestPairingCode(targetPhone);
+      this.pairingCode = code;
+
+      this.logger.log(`
+===============================================================
+[WhatsApp Channel Integration]
+PAIRING CODE FOR +${targetPhone}:  [ ${code} ]
+
+Instructions to link your WhatsApp:
+1. Open WhatsApp on phone (${targetPhone})
+2. Go to Settings > Linked Devices > Link a Device
+3. Tap "Link with phone number instead"
+4. Enter code: ${code}
+===============================================================
+`);
+
+      return code;
+    }
   }
 
   public async resolveChannelJid(): Promise<string> {
@@ -355,8 +384,13 @@ Instructions to link your WhatsApp:
     const authDir = this.getAuthDir();
     try {
       if (fs.existsSync(authDir)) {
-        fs.rmSync(authDir, { recursive: true, force: true });
-        this.logger.log(`[WhatsApp] Cleared auth storage at ${authDir}`);
+        const files = fs.readdirSync(authDir);
+        for (const file of files) {
+          try {
+            fs.rmSync(path.join(authDir, file), { recursive: true, force: true });
+          } catch (e) {}
+        }
+        this.logger.log(`[WhatsApp] Cleared auth storage files in ${authDir}`);
       }
     } catch (err) {
       this.logger.warn(`[WhatsApp] Failed to clear auth directory: ${err}`);
@@ -366,5 +400,11 @@ Instructions to link your WhatsApp:
     this.pairingCode = null;
     this.qrCode = null;
     this.resolvedChannelJid = null;
+    if (this.sock) {
+      try {
+        this.sock.end(undefined);
+      } catch (e) {}
+      this.sock = null;
+    }
   }
 }

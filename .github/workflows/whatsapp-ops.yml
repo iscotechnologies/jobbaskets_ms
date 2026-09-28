@@ -39,6 +39,9 @@ jobs:
               echo "=== Requesting Pairing Code ==="
               curl -s -X POST http://127.0.0.1:3001/api/v1/whatsapp/pair -H "Content-Type: application/json" -d '{"phoneNumber": "9943161027"}'
               echo ""
+              echo "=== WhatsApp Status ==="
+              curl -s http://127.0.0.1:3001/api/v1/whatsapp/status
+              echo ""
               echo "=== Recent Logs ==="
               docker logs --tail 30 jobbaskets_social_poster
             elif [ "${{ github.event.inputs.action }}" = "logs" ]; then
