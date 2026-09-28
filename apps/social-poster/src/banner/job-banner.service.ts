@@ -203,9 +203,17 @@ export class JobBannerService implements OnModuleInit {
       let valText = r.val;
       let valFont = 38;
       ctx.font = `bold ${valFont}px ${fontBold}`;
-      while (ctx.measureText(valText).width > maxValWidth && valFont > 22) {
+      while (ctx.measureText(valText).width > maxValWidth && valFont > 24) {
         valFont -= 2;
         ctx.font = `bold ${valFont}px ${fontBold}`;
+      }
+
+      if (ctx.measureText(valText).width > maxValWidth) {
+        let trimmed = valText;
+        while (ctx.measureText(trimmed + '...').width > maxValWidth && trimmed.length > 0) {
+          trimmed = trimmed.slice(0, -1);
+        }
+        valText = trimmed.trim() + '...';
       }
 
       ctx.fillText(valText, valX, y);
