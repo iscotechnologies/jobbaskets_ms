@@ -16,6 +16,7 @@ on:
           - test-publish
           - publish-recent-5
           - inspect-channel
+          - test-text-publish
 
 jobs:
   run-op:
@@ -175,6 +176,32 @@ jobs:
               echo "=== WhatsApp Channel & Viewer Metadata ==="
               curl -s http://127.0.0.1:3001/api/v1/whatsapp/channel || true
               echo ""
+            elif [ "${{ github.event.inputs.action }}" = "test-text-publish" ]; then
+              echo "=== Text-Only Test Publish to WhatsApp Channel ==="
+              SECRET=$(grep "INTERNAL_SERVICE_SECRET" .env | cut -d '=' -f2)
+              curl -s -X POST http://127.0.0.1:3001/api/v1/jobs/publish \
+                -H "Content-Type: application/json" \
+                -H "X-Internal-Service-Key: $SECRET" \
+                -d '{
+                  "job_id": 999998,
+                  "uuid": "test-text-only-001",
+                  "post_type": "standard",
+                  "title": "WhatsApp Channel Test Post",
+                  "company_name": "JobBaskets Technologies",
+                  "locations": ["Chennai"],
+                  "employment_type": "Full Time",
+                  "experience_required": "2-4 Years",
+                  "salary_min": 30000,
+                  "salary_max": 60000,
+                  "salary_currency": "INR",
+                  "show_salary": true,
+                  "skills": ["Testing"],
+                  "target_platforms": ["whatsapp"]
+                }'
+              sleep 6
+              echo ""
+              echo "=== Recent Logs ==="
+              docker logs --tail 30 jobbaskets_social_poster
             elif [ "${{ github.event.inputs.action }}" = "logs" ]; then
               docker logs --tail 100 jobbaskets_social_poster
             fi
