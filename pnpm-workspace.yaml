@@ -1,3 +1,5 @@
 allowBuilds:
+  '@whiskeysockets/baileys': true
   msgpackr-extract: true
+  protobufjs: true
   unrs-resolver: true

@@ -44,6 +44,9 @@ RUN pnpm install --prod --frozen-lockfile
 COPY --from=builder /app/dist ./dist
 COPY apps/social-poster/assets ./apps/social-poster/assets
 
+# Create storage directory for WhatsApp auth state and set permissions
+RUN mkdir -p /app/storage/whatsapp_auth && chown -R node:node /app/storage
+
 # Run as non-root node user for container security
 USER node
 

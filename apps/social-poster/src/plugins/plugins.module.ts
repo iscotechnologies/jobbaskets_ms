@@ -10,6 +10,8 @@ import { FacebookPlugin } from './facebook/facebook.plugin';
 import { FacebookGraphClient } from './facebook/facebook-graph.client';
 import { InstagramPlugin } from './instagram/instagram.plugin';
 import { InstagramGraphClient } from './instagram/instagram-graph.client';
+import { WhatsAppPlugin } from './whatsapp/whatsapp.plugin';
+import { WhatsAppBaileysClient } from './whatsapp/whatsapp-baileys.client';
 import { BannerModule } from '../banner/banner.module';
 
 @Module({
@@ -23,6 +25,8 @@ import { BannerModule } from '../banner/banner.module';
     FacebookPlugin,
     InstagramGraphClient,
     InstagramPlugin,
+    WhatsAppBaileysClient,
+    WhatsAppPlugin,
     {
       provide: SOCIAL_PLUGINS_TOKEN,
       useFactory: (
@@ -30,13 +34,15 @@ import { BannerModule } from '../banner/banner.module';
         telegram: TelegramPlugin,
         facebook: FacebookPlugin,
         instagram: InstagramPlugin,
+        whatsapp: WhatsAppPlugin,
       ) => {
-        return [linkedIn, telegram, facebook, instagram];
+        return [linkedIn, telegram, facebook, instagram, whatsapp];
       },
-      inject: [LinkedInPlugin, TelegramPlugin, FacebookPlugin, InstagramPlugin],
+      inject: [LinkedInPlugin, TelegramPlugin, FacebookPlugin, InstagramPlugin, WhatsAppPlugin],
     },
     PluginRegistry,
   ],
-  exports: [PluginRegistry, BannerModule],
+  exports: [PluginRegistry, BannerModule, WhatsAppBaileysClient],
 })
 export class PluginsModule {}
+

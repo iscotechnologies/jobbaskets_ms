@@ -9,6 +9,8 @@ export enum SocialPlatform {
   FACEBOOK = 'facebook',
   INSTAGRAM = 'instagram',
   TWITTER = 'twitter',
+  TELEGRAM = 'telegram',
+  WHATSAPP = 'whatsapp',
 }
 
 export enum PostStatus {

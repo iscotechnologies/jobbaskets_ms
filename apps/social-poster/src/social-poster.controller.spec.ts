@@ -1,9 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
+
+jest.mock('@whiskeysockets/baileys', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  makeWASocket: jest.fn(),
+  useMultiFileAuthState: jest.fn().mockResolvedValue({ state: { creds: {}, keys: {} }, saveCreds: jest.fn() }),
+  fetchLatestBaileysVersion: jest.fn().mockResolvedValue({ version: [2, 3000, 1] }),
+  makeCacheableSignalKeyStore: jest.fn(),
+  DisconnectReason: { loggedOut: 401 },
+}));
+
 import { SocialPosterController } from './social-poster.controller';
 import { SocialPosterService } from './social-poster.service';
 import { SocialPostQueueService } from './queue/social-post.queue.service';
 import { SocialPostStateService } from './state/social-post-state.service';
 import { PluginRegistry } from './plugins/plugin.registry';
+import { WhatsAppBaileysClient } from './plugins/whatsapp/whatsapp-baileys.client';
 import { JobPublishedPayloadDto } from '@app/common';
 
 describe('SocialPosterController', () => {
@@ -41,6 +53,13 @@ describe('SocialPosterController', () => {
     }),
   };
 
+  const mockWhatsAppClient = {
+    getStatus: jest.fn().mockReturnValue({ connected: true, registered: true }),
+    requestPairingCode: jest.fn().mockResolvedValue('12345678'),
+    getPhoneNumber: jest.fn().mockReturnValue('919943161027'),
+    clearAuth: jest.fn(),
+  };
+
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [SocialPosterController],
@@ -49,6 +68,7 @@ describe('SocialPosterController', () => {
         { provide: SocialPostQueueService, useValue: mockQueueService },
         { provide: SocialPostStateService, useValue: mockStateService },
         { provide: PluginRegistry, useValue: mockPluginRegistry },
+        { provide: WhatsAppBaileysClient, useValue: mockWhatsAppClient },
         {
           provide: require('@nestjs/config').ConfigService,
           useValue: { get: jest.fn().mockReturnValue(null) },

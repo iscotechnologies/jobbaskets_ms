@@ -32,3 +32,9 @@ coverage/
 # Logs
 logs/
 *.log
+
+# Storage & Auth sessions
+storage/
+public_storage/
+whatsapp_auth/
+
