@@ -380,6 +380,37 @@ Instructions to link your WhatsApp:
     };
   }
 
+  public async getChannelMetadata(): Promise<any> {
+    if (!this.sock || !this.isConnected) {
+      throw new Error('WhatsApp client is not connected');
+    }
+    const configVal = this.getChannelConfig() || 'https://whatsapp.com/channel/0029Vb7nef0LdQekQKYLCC0Z';
+    let inviteCode = configVal.trim();
+    if (inviteCode.includes('whatsapp.com/channel/')) {
+      const parts = inviteCode.split('whatsapp.com/channel/');
+      inviteCode = (parts[1] || '').split(/[/?#]/)[0];
+    }
+    let byInvite: any = null;
+    let byJid: any = null;
+    try {
+      byInvite = await this.sock.newsletterMetadata('invite', inviteCode);
+    } catch (e: any) {
+      byInvite = { error: e?.message || String(e) };
+    }
+    const jid = this.resolvedChannelJid || '120363407970652077@newsletter';
+    try {
+      byJid = await this.sock.newsletterMetadata('jid', jid);
+    } catch (e: any) {
+      byJid = { error: e?.message || String(e) };
+    }
+    return {
+      connectedUser: this.sock.user?.id,
+      resolvedJid: this.resolvedChannelJid,
+      byInvite,
+      byJid,
+    };
+  }
+
   public clearAuth(): void {
     const authDir = this.getAuthDir();
     try {

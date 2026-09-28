@@ -70,6 +70,11 @@ export class SocialPosterController {
     return this.whatsAppClient.getStatus();
   }
 
+  @Get('api/v1/whatsapp/channel')
+  async getWhatsAppChannel() {
+    return this.whatsAppClient.getChannelMetadata();
+  }
+
   @Post('api/v1/whatsapp/pair')
   async requestWhatsAppPairing(@Body() body: { phoneNumber?: string }) {
     const code = await this.whatsAppClient.requestPairingCode(body?.phoneNumber);

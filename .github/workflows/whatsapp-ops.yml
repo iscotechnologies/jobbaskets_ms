@@ -172,43 +172,9 @@ jobs:
               echo "=== Recent Social Poster Logs ==="
               docker logs --tail 40 jobbaskets_social_poster
             elif [ "${{ github.event.inputs.action }}" = "inspect-channel" ]; then
-              echo "=== Inspecting WhatsApp Channel & Permissions ==="
-              docker exec jobbaskets_social_poster node -e '
-                const makeWASocket = require("@whiskeysockets/baileys").default;
-                const { useMultiFileAuthState } = require("@whiskeysockets/baileys");
-                const pino = require("pino");
-
-                async function inspect() {
-                  const { state } = await useMultiFileAuthState("/app/storage/whatsapp_auth");
-                  const sock = makeWASocket({
-                    auth: state,
-                    logger: pino({ level: "silent" }),
-                    printQRInTerminal: false
-                  });
-                  await new Promise(r => setTimeout(r, 4000));
-                  console.log("Connected User ID:", sock.user?.id);
-                  try {
-                    const metaInvite = await sock.newsletterMetadata("invite", "0029Vb7nef0LdQekQKYLCC0Z");
-                    console.log("Channel Metadata by Invite:", JSON.stringify(metaInvite, null, 2));
-                  } catch(e) {
-                    console.log("Error fetching by invite:", e.message);
-                  }
-                  try {
-                    const metaJid = await sock.newsletterMetadata("jid", "120363407970652077@newsletter");
-                    console.log("Channel Metadata by JID:", JSON.stringify(metaJid, null, 2));
-                  } catch(e) {
-                    console.log("Error fetching by JID:", e.message);
-                  }
-                  try {
-                    const follow = await sock.newsletterFollow("120363407970652077@newsletter");
-                    console.log("Follow result:", follow);
-                  } catch(e) {
-                    console.log("Follow error:", e.message);
-                  }
-                  process.exit(0);
-                }
-                inspect();
-              '
+              echo "=== WhatsApp Channel & Viewer Metadata ==="
+              curl -s http://127.0.0.1:3001/api/v1/whatsapp/channel || true
+              echo ""
             elif [ "${{ github.event.inputs.action }}" = "logs" ]; then
               docker logs --tail 100 jobbaskets_social_poster
             fi
