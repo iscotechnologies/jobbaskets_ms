@@ -14,6 +14,7 @@ on:
           - logs
           - update-config
           - test-publish
+          - publish-recent-5
 
 jobs:
   run-op:
@@ -89,6 +90,26 @@ jobs:
               echo ""
               echo "=== Recent Logs ==="
               docker logs --tail 30 jobbaskets_social_poster
+            elif [ "${{ github.event.inputs.action }}" = "publish-recent-5" ]; then
+              echo "=== Dispatching Last 5 Published Jobs ==="
+              API_CONTAINER=$(docker ps --filter "name=api" --format "{{.Names}}" | grep -v "redis" | head -n 1)
+              echo "Found API container: $API_CONTAINER"
+              if [ -n "$API_CONTAINER" ]; then
+                docker exec $API_CONTAINER php artisan tinker --execute="
+                  \$jobs = \App\Models\JobPost::where('posting_status', 'publish')->latest('id')->take(5)->get();
+                  foreach (\$jobs as \$job) {
+                    echo 'Dispatching Job ID ' . \$job->id . ': ' . \$job->title . PHP_EOL;
+                    \App\Jobs\PublishJobToSocialPoster::dispatchSync(\$job->id);
+                  }
+                "
+              else
+                echo "Could not find API container. Listing all containers:"
+                docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
+              fi
+              sleep 12
+              echo ""
+              echo "=== Recent Social Poster Logs ==="
+              docker logs --tail 50 jobbaskets_social_poster
             elif [ "${{ github.event.inputs.action }}" = "logs" ]; then
               docker logs --tail 100 jobbaskets_social_poster
             fi
