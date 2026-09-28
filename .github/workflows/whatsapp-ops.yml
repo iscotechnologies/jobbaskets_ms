@@ -1,0 +1,46 @@
+name: WhatsApp Ops
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Operation to perform'
+        required: true
+        default: 'status'
+        type: choice
+        options:
+          - status
+          - pair
+          - logs
+
+jobs:
+  run-op:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run WhatsApp Operation on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 2244 }}
+          command_timeout: 5m
+          script: |
+            TARGET_DIR="/var/www/jobbaskets/ms"
+            cd $TARGET_DIR
+            
+            if [ "${{ github.event.inputs.action }}" = "status" ]; then
+              echo "=== WhatsApp Status ==="
+              curl -s http://127.0.0.1:3001/api/v1/whatsapp/status || true
+              echo ""
+              echo "=== Recent Logs ==="
+              docker logs --tail 40 jobbaskets_social_poster
+            elif [ "${{ github.event.inputs.action }}" = "pair" ]; then
+              echo "=== Requesting Pairing Code ==="
+              curl -s -X POST http://127.0.0.1:3001/api/v1/whatsapp/pair -H "Content-Type: application/json" -d '{"phoneNumber": "9943161027"}'
+              echo ""
+              echo "=== Recent Logs ==="
+              docker logs --tail 30 jobbaskets_social_poster
+            elif [ "${{ github.event.inputs.action }}" = "logs" ]; then
+              docker logs --tail 100 jobbaskets_social_poster
+            fi
