@@ -211,18 +211,25 @@ jobs:
               echo "API container: $API_CONTAINER"
               if [ -n "$API_CONTAINER" ]; then
                 docker exec $API_CONTAINER php artisan tinker --execute="
-                  echo '--- LATEST 10 JOB POSTS ---' . PHP_EOL;
-                  foreach (\App\Models\JobPost::latest('id')->take(10)->get() as \$j) {
-                    echo 'ID:' . \$j->id . ' | Title: ' . \$j->title . ' | Type: ' . (\$j->post_type ?? 'null') . ' | Status: ' . \$j->posting_status . ' | Created: ' . \$j->created_at . PHP_EOL;
+                  echo '--- ALL RELEVANT TABLES ---' . PHP_EOL;
+                  \$tables = \DB::select('SHOW TABLES');
+                  foreach (\$tables as \$t) {
+                    \$val = current((array)\$t);
+                    if (str_contains(\$val, 'job') || str_contains(\$val, 'post') || str_contains(\$val, 'ad') || str_contains(\$val, 'class')) {
+                      echo 'Table: ' . \$val . PHP_EOL;
+                    }
                   }
                   
-                  echo PHP_EOL . '--- SEARCHING CLASSIFIED ADS ---' . PHP_EOL;
-                  if (class_exists('\App\Models\ClassifiedAd')) {
-                    foreach (\App\Models\ClassifiedAd::latest('id')->take(10)->get() as \$c) {
-                      echo 'CLASS_ID:' . \$c->id . ' | Title: ' . (\$c->title ?? 'none') . ' | Company: ' . (\$c->company_name ?? 'none') . ' | Status: ' . (\$c->status ?? 'none') . ' | Created: ' . \$c->created_at . PHP_EOL;
-                    }
-                  } else {
-                    echo 'ClassifiedAd model not found.' . PHP_EOL;
+                  echo PHP_EOL . '--- SEARCHING ALL JOB_POSTS FOR SUN OR SIVAKASI ---' . PHP_EOL;
+                  \$found = \DB::table('job_posts')
+                    ->where('title', 'like', '%sun%')
+                    ->orWhere('title', 'like', '%siva%')
+                    ->orWhere('title', 'like', '%publicat%')
+                    ->orWhere('description', 'like', '%sun%')
+                    ->orWhere('description', 'like', '%siva%')
+                    ->get();
+                  foreach (\$found as \$f) {
+                    echo 'JOB_POST ID: ' . \$f->id . ' | Title: ' . \$f->title . ' | Status: ' . \$f->posting_status . ' | Created: ' . \$f->created_at . PHP_EOL;
                   }
                 "
               fi
