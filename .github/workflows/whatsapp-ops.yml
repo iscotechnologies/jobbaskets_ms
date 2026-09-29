@@ -211,25 +211,28 @@ jobs:
               echo "API container: $API_CONTAINER"
               if [ -n "$API_CONTAINER" ]; then
                 docker exec $API_CONTAINER php artisan tinker --execute="
-                  echo '--- ALL RELEVANT TABLES ---' . PHP_EOL;
-                  \$tables = \DB::select('SHOW TABLES');
-                  foreach (\$tables as \$t) {
-                    \$val = current((array)\$t);
-                    if (str_contains(\$val, 'job') || str_contains(\$val, 'post') || str_contains(\$val, 'ad') || str_contains(\$val, 'class')) {
-                      echo 'Table: ' . \$val . PHP_EOL;
+                  echo '--- SEARCHING COMPANIES ---' . PHP_EOL;
+                  \$comps = \DB::table('companies')->where('company_name', 'like', '%sun%')->orWhere('company_name', 'like', '%siva%')->get();
+                  foreach (\$comps as \$c) {
+                    echo 'COMPANY ID: ' . \$c->id . ' | Name: ' . \$c->company_name . PHP_EOL;
+                    \$cJobs = \DB::table('job_posts')->where('company_id', \$c->id)->get();
+                    foreach (\$cJobs as \$cj) {
+                      echo '   -> JOB ID: ' . \$cj->id . ' | Title: ' . \$cj->title . ' | Status: ' . \$cj->posting_status . ' | Created: ' . \$cj->created_at . PHP_EOL;
                     }
                   }
                   
-                  echo PHP_EOL . '--- SEARCHING ALL JOB_POSTS FOR SUN OR SIVAKASI ---' . PHP_EOL;
-                  \$found = \DB::table('job_posts')
-                    ->where('title', 'like', '%sun%')
-                    ->orWhere('title', 'like', '%siva%')
-                    ->orWhere('title', 'like', '%publicat%')
-                    ->orWhere('description', 'like', '%sun%')
-                    ->orWhere('description', 'like', '%siva%')
-                    ->get();
-                  foreach (\$found as \$f) {
-                    echo 'JOB_POST ID: ' . \$f->id . ' | Title: ' . \$f->title . ' | Status: ' . \$f->posting_status . ' | Created: ' . \$f->created_at . PHP_EOL;
+                  echo PHP_EOL . '--- SEARCHING POSTS TABLE ---' . PHP_EOL;
+                  if (\Schema::hasTable('posts')) {
+                    \$p = \DB::table('posts')->latest('id')->take(5)->get();
+                    foreach (\$p as \$row) {
+                      echo 'POST ID: ' . \$row->id . ' | ' . json_encode(\$row) . PHP_EOL;
+                    }
+                  }
+                  
+                  echo PHP_EOL . '--- JOBS CREATED IN LAST 3 DAYS ---' . PHP_EOL;
+                  \$recent = \DB::table('job_posts')->where('created_at', '>=', now()->subDays(3))->get();
+                  foreach (\$recent as \$r) {
+                    echo 'RECENT JOB ID: ' . \$r->id . ' | Title: ' . \$r->title . ' | CompID: ' . \$r->company_id . ' | Status: ' . \$r->posting_status . ' | Created: ' . \$r->created_at . PHP_EOL;
                   }
                 "
               fi
