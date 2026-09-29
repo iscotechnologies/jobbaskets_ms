@@ -206,49 +206,58 @@ jobs:
               echo "=== Recent Logs ==="
               docker logs --tail 30 jobbaskets_social_poster
             elif [ "${{ github.event.inputs.action }}" = "check-fb-job" ]; then
-              echo "=== Searching Job in Database ==="
               API_CONTAINER=$(docker ps --filter "name=api" --format "{{.Names}}" | grep -v "redis" | head -n 1)
               echo "API container: $API_CONTAINER"
               if [ -n "$API_CONTAINER" ]; then
+                echo "=== Searching Job in Database via Tinker ==="
                 docker exec $API_CONTAINER php artisan tinker --execute="
-                  echo '--- SEARCHING COMPANIES ---' . PHP_EOL;
-                  \$comps = \DB::table('companies')->where('company_name', 'like', '%sun%')->orWhere('company_name', 'like', '%siva%')->get();
+                  echo '--- SEARCHING SUN / SIVAKASI COMPANIES ---' . PHP_EOL;
+                  \$comps = \App\Models\CompanyMaster::where('company_name', 'like', '%Sun%')->orWhere('company_name', 'like', '%Siva%')->get();
                   foreach (\$comps as \$c) {
                     echo 'COMPANY ID: ' . \$c->id . ' | Name: ' . \$c->company_name . PHP_EOL;
-                    \$cJobs = \DB::table('job_posts')->where('company_id', \$c->id)->get();
+                    \$cJobs = \App\Models\JobPost::where('company_id', \$c->id)->latest('id')->get();
                     foreach (\$cJobs as \$cj) {
-                      echo '   -> JOB ID: ' . \$cj->id . ' | Title: ' . \$cj->title . ' | Status: ' . \$cj->posting_status . ' | Created: ' . \$cj->created_at . PHP_EOL;
+                      echo '   -> JOB ID: ' . \$cj->id . ' | UUID: ' . \$cj->uuid . ' | Title: ' . \$cj->title . ' | Type: ' . \$cj->post_type . ' | Created: ' . \$cj->created_at . PHP_EOL;
                     }
                   }
-                  
-                  echo PHP_EOL . '--- SEARCHING POSTS TABLE ---' . PHP_EOL;
-                  if (\Schema::hasTable('posts')) {
-                    \$p = \DB::table('posts')->latest('id')->take(5)->get();
-                    foreach (\$p as \$row) {
-                      echo 'POST ID: ' . \$row->id . ' | ' . json_encode(\$row) . PHP_EOL;
-                    }
+
+                  echo PHP_EOL . '--- SEARCHING JOBS BY TITLE LIKE SALES / MARKET / SUN ---' . PHP_EOL;
+                  \$titleJobs = \App\Models\JobPost::where('title', 'like', '%Sales%')->orWhere('title', 'like', '%Market%')->latest('id')->take(10)->get();
+                  foreach (\$titleJobs as \$tj) {
+                    echo 'JOB ID: ' . \$tj->id . ' | Title: ' . \$tj->title . ' | CompID: ' . \$tj->company_id . ' | Created: ' . \$tj->created_at . PHP_EOL;
                   }
-                  
-                  echo PHP_EOL . '--- JOBS CREATED IN LAST 3 DAYS ---' . PHP_EOL;
-                  \$recent = \DB::table('job_posts')->where('created_at', '>=', now()->subDays(3))->get();
+
+                  echo PHP_EOL . '--- RECENT 10 JOBS ---' . PHP_EOL;
+                  \$recent = \App\Models\JobPost::with('company')->latest('id')->take(10)->get();
                   foreach (\$recent as \$r) {
-                    echo 'RECENT JOB ID: ' . \$r->id . ' | Title: ' . \$r->title . ' | CompID: ' . \$r->company_id . ' | Status: ' . \$r->posting_status . ' | Created: ' . \$r->created_at . PHP_EOL;
+                    \$cName = \$r->company ? \$r->company->company_name : 'No Company';
+                    echo 'RECENT ID: ' . \$r->id . ' | Title: ' . \$r->title . ' | Company: ' . \$cName . ' | Type: ' . \$r->post_type . ' | Created: ' . \$r->created_at . PHP_EOL;
                   }
                 "
               fi
+
               echo ""
-              echo "=== Checking Social Post Statuses in Redis ==="
-              for id in $(docker exec $API_CONTAINER php artisan tinker --execute="
-                \$ids = \App\Models\JobPost::latest('id')->take(10)->pluck('id')->all();
-                echo implode(' ', \$ids);
-              " | tr -d '\r\n"'); do
-                echo "Job ID $id:"
-                curl -s http://127.0.0.1:3001/api/v1/jobs/$id/social-status || true
+              echo "=== Finding all social post states in Redis ==="
+              REDIS_CONTAINER=$(docker ps --filter "name=redis" --format "{{.Names}}" | head -n 1)
+              echo "Redis container: $REDIS_CONTAINER"
+              if [ -n "$REDIS_CONTAINER" ]; then
+                KEYS=$(docker exec $REDIS_CONTAINER redis-cli KEYS "*post:*" | tr -d '\r')
+                echo "Found Redis keys:"
+                echo "$KEYS"
                 echo ""
-              done
+                for k in $KEYS; do
+                  echo "--- KEY: $k ---"
+                  docker exec $REDIS_CONTAINER redis-cli HGETALL "$k"
+                  echo ""
+                done
+              fi
+
               echo ""
-              echo "=== Checking Facebook Error Logs in Social Poster ==="
-              docker logs jobbaskets_social_poster 2>&1 | grep -i -E "facebook.*error|failed|error.*facebook|FB_PAGE" | tail -n 30 || true
+              echo "=== Social Poster Logs (filtered for facebook / error) ==="
+              docker logs jobbaskets_social_poster 2>&1 | grep -i -C 4 "facebook" | tail -n 80 || true
+              echo ""
+              echo "=== Recent 60 lines of Social Poster Logs ==="
+              docker logs --tail 60 jobbaskets_social_poster
             elif [ "${{ github.event.inputs.action }}" = "logs" ]; then
               docker logs --tail 100 jobbaskets_social_poster
             fi
