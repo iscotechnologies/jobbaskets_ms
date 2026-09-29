@@ -17,7 +17,6 @@ on:
           - publish-recent-5
           - inspect-channel
           - test-text-publish
-          - check-fb-job
 
 jobs:
   run-op:
@@ -205,100 +204,6 @@ jobs:
               echo ""
               echo "=== Recent Logs ==="
               docker logs --tail 30 jobbaskets_social_poster
-            elif [ "${{ github.event.inputs.action }}" = "check-fb-job" ]; then
-              echo "=== ALL DOCKER CONTAINERS ==="
-              docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-
-              echo ""
-              echo "=== CHECKING REDIS KEYS ACROSS ALL REDIS CONTAINERS ==="
-              for rcon in $(docker ps --filter "name=redis" --format "{{.Names}}"); do
-                echo "--- Redis Container: $rcon ---"
-                ALL_KEYS=$(docker exec $rcon redis-cli KEYS "*" | tr -d '\r')
-                echo "Keys count: $(echo "$ALL_KEYS" | wc -l)"
-                echo "Matching social / bull / post keys:"
-                echo "$ALL_KEYS" | grep -E "social|post|bull" || true
-                for sk in $(echo "$ALL_KEYS" | grep -E "post_state|social" || true); do
-                  echo "Dumping $sk:"
-                  docker exec $rcon redis-cli HGETALL "$sk" || docker exec $rcon redis-cli GET "$sk" || true
-                  echo ""
-                done
-              done
-
-              echo ""
-              echo "=== CHECKING API CONTAINERS & LARAVEL LOGS ==="
-              for apicon in $(docker ps --filter "name=api" --format "{{.Names}}" | grep -v "redis"); do
-                echo "--- API Container: $apicon ---"
-                echo "Searching recent jobs in DB via $apicon:"
-                docker exec $apicon php artisan tinker --execute="
-                  echo '>> Searching CompanyMaster for Sun / Sivakasi / Publication:' . PHP_EOL;
-                  \$comps = \App\Models\CompanyMaster::where('company_name', 'like', '%sun%')
-                    ->orWhere('company_name', 'like', '%siva%')
-                    ->orWhere('company_name', 'like', '%pub%')
-                    ->get();
-                  foreach (\$comps as \$c) {
-                    echo 'Company: id=' . \$c->id . ', name=' . \$c->company_name . PHP_EOL;
-                  }
-
-                  echo '>> Searching ConsultancyMaster for Sun / Sivakasi / Publication:' . PHP_EOL;
-                  \$cons = \App\Models\ConsultancyMaster::where('consultancy_name', 'like', '%sun%')
-                    ->orWhere('consultancy_name', 'like', '%siva%')
-                    ->orWhere('consultancy_name', 'like', '%pub%')
-                    ->get();
-                  foreach (\$cons as \$cn) {
-                    echo 'Consultancy: id=' . \$cn->id . ', name=' . \$cn->consultancy_name . PHP_EOL;
-                  }
-
-                  echo '>> Jobs updated or created in the last 4 days:' . PHP_EOL;
-                  \$recentJobs = \App\Models\JobPost::with(['company', 'consultancy'])
-                    ->where('created_at', '>=', now()->subDays(4))
-                    ->orWhere('updated_at', '>=', now()->subDays(4))
-                    ->latest('id')
-                    ->get();
-                  foreach (\$recentJobs as \$j) {
-                    \$cName = \$j->company?->company_name ?? \$j->consultancy?->consultancy_name ?? 'None';
-                    echo 'JOB #' . \$j->id . ' | Title: ' . \$j->title . ' | Company/Consultancy: ' . \$cName . ' | Type: ' . \$j->post_type . ' | PostStatus: ' . \$j->posting_status . ' | AdminStatus: ' . \$j->admin_approval_status . ' | Created: ' . \$j->created_at . ' | Updated: ' . \$j->updated_at . PHP_EOL;
-                  }
-
-                  echo '>> Searching JobPost by any column matching Sun or Sivakasi:' . PHP_EOL;
-                  \$matchJobs = \App\Models\JobPost::where('title', 'like', '%Sun%')
-                    ->orWhere('title', 'like', '%Siva%')
-                    ->orWhere('description', 'like', '%Sun%')
-                    ->orWhere('description', 'like', '%Siva%')
-                    ->latest('id')->take(5)->get();
-                  foreach (\$matchJobs as \$mj) {
-                    echo 'MATCHED JOB #' . \$mj->id . ' | Title: ' . \$mj->title . ' | Created: ' . \$mj->created_at . PHP_EOL;
-                  }
-                " || true
-
-                echo "Checking Laravel log file for social-poster in $apicon:"
-                docker exec $apicon tail -n 100 storage/logs/laravel.log 2>&1 | grep -i -C 3 "social-poster" || true
-              done
-
-              echo ""
-              echo "=== CHECKING FACEBOOK GRAPH API FOR JOB 214 POST ==="
-              FB_PAGE_ID=$(docker exec jobbaskets_social_poster printenv FB_PAGE_ID || true)
-              FB_TOKEN=$(docker exec jobbaskets_social_poster printenv FB_PAGE_ACCESS_TOKEN || true)
-              if [ -n "$FB_TOKEN" ]; then
-                echo "Querying Facebook Graph API for Post 1014622805075825_122106319922510839:"
-                curl -s "https://graph.facebook.com/v20.0/1014622805075825_122106319922510839?fields=id,is_published,is_hidden,message,permalink_url,created_time,status_type&access_token=${FB_TOKEN}"
-                echo ""
-                echo "Querying Facebook Graph API for Photo 122106319922510839:"
-                curl -s "https://graph.facebook.com/v20.0/122106319922510839?fields=id,link,name,created_time,page_story_id&access_token=${FB_TOKEN}"
-                echo ""
-                echo "Querying Facebook Page Feed (last 5):"
-                curl -s "https://graph.facebook.com/v20.0/${FB_PAGE_ID}/feed?fields=id,message,permalink_url,created_time&limit=5&access_token=${FB_TOKEN}"
-                echo ""
-                echo "Querying Facebook Page Published Posts (last 5):"
-                curl -s "https://graph.facebook.com/v20.0/${FB_PAGE_ID}/published_posts?fields=id,message,permalink_url,created_time&limit=5&access_token=${FB_TOKEN}"
-                echo ""
-                echo "Querying Facebook Page Photos (last 5):"
-                curl -s "https://graph.facebook.com/v20.0/${FB_PAGE_ID}/photos?fields=id,link,name,created_time&limit=5&access_token=${FB_TOKEN}"
-                echo ""
-              fi
-
-              echo ""
-              echo "=== SOCIAL POSTER CONTAINER LOGS ==="
-              docker logs --tail 300 jobbaskets_social_poster 2>&1 | grep -i -E "error|fail|facebook|sun|sivakasi" | tail -n 80 || true
             elif [ "${{ github.event.inputs.action }}" = "logs" ]; then
               docker logs --tail 100 jobbaskets_social_poster
             fi
