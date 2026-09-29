@@ -17,6 +17,7 @@ on:
           - publish-recent-5
           - inspect-channel
           - test-text-publish
+          - check-fb-job
 
 jobs:
   run-op:
@@ -204,6 +205,42 @@ jobs:
               echo ""
               echo "=== Recent Logs ==="
               docker logs --tail 30 jobbaskets_social_poster
+            elif [ "${{ github.event.inputs.action }}" = "check-fb-job" ]; then
+              echo "=== Searching Job in Database ==="
+              API_CONTAINER=$(docker ps --filter "name=api" --format "{{.Names}}" | grep -v "redis" | head -n 1)
+              echo "API container: $API_CONTAINER"
+              if [ -n "$API_CONTAINER" ]; then
+                docker exec $API_CONTAINER php artisan tinker --execute="
+                  \$jobs = \App\Models\JobPost::with(['company', 'consultancy'])
+                    ->where(function(\$q) {
+                      \$q->where('title', 'like', '%sun%')
+                        ->orWhere('title', 'like', '%sivakasi%')
+                        ->orWhere('title', 'like', '%market%')
+                        ->orWhere('description', 'like', '%sivakasi%')
+                        ->orWhere('description', 'like', '%sun publication%')
+                        ->orWhereHas('company', fn(\$cq) => \$cq->where('company_name', 'like', '%sun%')->orWhere('company_name', 'like', '%sivakasi%'));
+                    })
+                    ->latest('id')
+                    ->take(5)
+                    ->get();
+                  foreach (\$jobs as \$j) {
+                    echo 'FOUND_JOB_ID:' . \$j->id . ' | Title: ' . \$j->title . ' | Company: ' . (\$j->company?->company_name ?? \$j->consultancy?->name ?? 'none') . ' | Type: ' . \$j->post_type . ' | Created: ' . \$j->created_at . PHP_EOL;
+                  }
+                "
+              fi
+              echo ""
+              echo "=== Checking Social Post Statuses in Redis ==="
+              for id in $(docker exec $API_CONTAINER php artisan tinker --execute="
+                \$ids = \App\Models\JobPost::latest('id')->take(10)->pluck('id')->all();
+                echo implode(' ', \$ids);
+              " | tr -d '\r\n"'); do
+                echo "Job ID $id:"
+                curl -s http://127.0.0.1:3001/api/v1/jobs/$id/social-status || true
+                echo ""
+              done
+              echo ""
+              echo "=== Checking Facebook Error Logs in Social Poster ==="
+              docker logs jobbaskets_social_poster 2>&1 | grep -i -E "facebook.*error|failed|error.*facebook|FB_PAGE" | tail -n 30 || true
             elif [ "${{ github.event.inputs.action }}" = "logs" ]; then
               docker logs --tail 100 jobbaskets_social_poster
             fi
