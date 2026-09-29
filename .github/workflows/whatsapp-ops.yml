@@ -211,20 +211,18 @@ jobs:
               echo "API container: $API_CONTAINER"
               if [ -n "$API_CONTAINER" ]; then
                 docker exec $API_CONTAINER php artisan tinker --execute="
-                  \$jobs = \App\Models\JobPost::with(['company', 'consultancy'])
-                    ->where(function(\$q) {
-                      \$q->where('title', 'like', '%sun%')
-                        ->orWhere('title', 'like', '%sivakasi%')
-                        ->orWhere('title', 'like', '%market%')
-                        ->orWhere('description', 'like', '%sivakasi%')
-                        ->orWhere('description', 'like', '%sun publication%')
-                        ->orWhereHas('company', fn(\$cq) => \$cq->where('company_name', 'like', '%sun%')->orWhere('company_name', 'like', '%sivakasi%'));
-                    })
-                    ->latest('id')
-                    ->take(5)
-                    ->get();
-                  foreach (\$jobs as \$j) {
-                    echo 'FOUND_JOB_ID:' . \$j->id . ' | Title: ' . \$j->title . ' | Company: ' . (\$j->company?->company_name ?? \$j->consultancy?->name ?? 'none') . ' | Type: ' . \$j->post_type . ' | Created: ' . \$j->created_at . PHP_EOL;
+                  echo '--- LATEST 10 JOB POSTS ---' . PHP_EOL;
+                  foreach (\App\Models\JobPost::latest('id')->take(10)->get() as \$j) {
+                    echo 'ID:' . \$j->id . ' | Title: ' . \$j->title . ' | Type: ' . (\$j->post_type ?? 'null') . ' | Status: ' . \$j->posting_status . ' | Created: ' . \$j->created_at . PHP_EOL;
+                  }
+                  
+                  echo PHP_EOL . '--- SEARCHING CLASSIFIED ADS ---' . PHP_EOL;
+                  if (class_exists('\App\Models\ClassifiedAd')) {
+                    foreach (\App\Models\ClassifiedAd::latest('id')->take(10)->get() as \$c) {
+                      echo 'CLASS_ID:' . \$c->id . ' | Title: ' . (\$c->title ?? 'none') . ' | Company: ' . (\$c->company_name ?? 'none') . ' | Status: ' . (\$c->status ?? 'none') . ' | Created: ' . \$c->created_at . PHP_EOL;
+                    }
+                  } else {
+                    echo 'ClassifiedAd model not found.' . PHP_EOL;
                   }
                 "
               fi
