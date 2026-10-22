@@ -8,6 +8,7 @@ export interface LinkedInPostRequest {
   landingPageUrl: string;
   title?: string;
   description?: string;
+  photoBuffer?: Buffer;
 }
 
 export interface LinkedInPostResponse {
@@ -26,12 +27,167 @@ export interface LinkedInUserInfo {
 export class LinkedInRestClient {
   private readonly logger = new Logger(LinkedInRestClient.name);
   private readonly baseUrl = 'https://api.linkedin.com/rest';
+  private readonly woopBaseUrl = 'https://api.woopsocial.com/v1';
   private cachedPersonUrn?: string;
+  private cachedWoopProjectId?: string;
+  private cachedWoopSocialAccount?: { id: string; platform: string };
 
   constructor(private readonly configService: ConfigService) {}
 
   /**
-   * Retrieve authenticated member's user info / person URN
+   * Check if WoopSocial integration is active
+   */
+  isWoopConfigured(): boolean {
+    return Boolean(this.configService.get<string>('WOOPSOCIAL_API_KEY'));
+  }
+
+  /**
+   * Retrieve WoopSocial Project ID (cached after first lookup)
+   */
+  async getWoopProjectId(): Promise<string> {
+    const configured = this.configService.get<string>('WOOPSOCIAL_PROJECT_ID');
+    if (configured) return configured;
+    if (this.cachedWoopProjectId) return this.cachedWoopProjectId;
+
+    const apiKey = this.configService.get<string>('WOOPSOCIAL_API_KEY');
+    const res = await fetch(`${this.woopBaseUrl}/projects`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch WoopSocial projects: ${res.status} ${await res.text()}`);
+    }
+    const projects = await res.json();
+    if (!Array.isArray(projects) || projects.length === 0) {
+      throw new Error('No WoopSocial project found for this API key');
+    }
+    this.cachedWoopProjectId = String(projects[0].id);
+    return this.cachedWoopProjectId;
+  }
+
+  /**
+   * Retrieve WoopSocial Social Account for LinkedIn (preferring LINKEDIN_PAGES)
+   */
+  async getWoopSocialAccount(): Promise<{ id: string; platform: string }> {
+    const configuredId = this.configService.get<string>('WOOPSOCIAL_LINKEDIN_ACCOUNT_ID');
+    if (configuredId) {
+      return { id: configuredId, platform: 'LINKEDIN_PAGES' };
+    }
+    if (this.cachedWoopSocialAccount) {
+      return this.cachedWoopSocialAccount;
+    }
+
+    const apiKey = this.configService.get<string>('WOOPSOCIAL_API_KEY');
+    const res = await fetch(`${this.woopBaseUrl}/social-accounts`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch WoopSocial social accounts: ${res.status} ${await res.text()}`);
+    }
+    const accounts = await res.json();
+    if (!Array.isArray(accounts) || accounts.length === 0) {
+      throw new Error('No social account connected in WoopSocial');
+    }
+
+    // Look for LINKEDIN_PAGES first (Company Page), fallback to LINKEDIN (personal)
+    const pageAccount = accounts.find((a: any) => a.platform === 'LINKEDIN_PAGES' && a.status === 'CONNECTED');
+    if (pageAccount) {
+      this.cachedWoopSocialAccount = { id: pageAccount.id, platform: pageAccount.platform };
+      return this.cachedWoopSocialAccount;
+    }
+
+    const memberAccount = accounts.find((a: any) => a.platform === 'LINKEDIN' && a.status === 'CONNECTED');
+    if (memberAccount) {
+      this.cachedWoopSocialAccount = { id: memberAccount.id, platform: memberAccount.platform };
+      return this.cachedWoopSocialAccount;
+    }
+
+    throw new Error('No connected LinkedIn account found in WoopSocial');
+  }
+
+  /**
+   * Publish post via WoopSocial REST API to LinkedIn Pages with automatic media cleanup
+   */
+  private async publishViaWoopSocial(req: LinkedInPostRequest): Promise<LinkedInPostResponse> {
+    const apiKey = this.configService.get<string>('WOOPSOCIAL_API_KEY')!;
+    const projectId = await this.getWoopProjectId();
+    const account = await this.getWoopSocialAccount();
+
+    let mediaId: string | undefined;
+
+    // 1. Upload photo if present
+    if (req.photoBuffer) {
+      try {
+        const form = new FormData();
+        form.append('file', new Blob([new Uint8Array(req.photoBuffer)], { type: 'image/png' }), 'job_banner.png');
+
+        const uploadRes = await fetch(`${this.woopBaseUrl}/media?projectId=${projectId}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}` },
+          body: form,
+        });
+
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          mediaId = uploadData.mediaId;
+          this.logger.log(`Uploaded job image to WoopSocial. Media ID: ${mediaId}`);
+        } else {
+          this.logger.warn(`WoopSocial media upload failed [${uploadRes.status}]: ${await uploadRes.text()}`);
+        }
+      } catch (err) {
+        this.logger.warn(`WoopSocial media upload error: ${err}`);
+      }
+    }
+
+    // 2. Publish post immediately with autoDeleteMediaAfterPublish to keep storage at 0 MB
+    const payload = {
+      content: [
+        {
+          text: req.commentary,
+          media: mediaId ? [{ type: 'MEDIA_LIBRARY', mediaId }] : undefined,
+        },
+      ],
+      schedule: {
+        type: 'PUBLISH_NOW',
+      },
+      autoDeleteMediaAfterPublish: true,
+      socialAccounts: [
+        {
+          platform: account.platform,
+          socialAccountId: account.id,
+        },
+      ],
+    };
+
+    const postRes = await fetch(`${this.woopBaseUrl}/posts`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!postRes.ok) {
+      const errText = await postRes.text();
+      this.logger.error(`WoopSocial post creation failed [${postRes.status}]: ${errText}`);
+      throw new Error(`WoopSocial API error [${postRes.status}]: ${errText}`);
+    }
+
+    const postData = await postRes.json();
+    const childPost = postData.socialAccountPosts?.[0];
+    const externalId = childPost?.externalPostId || postData.id;
+    const postUrl = childPost?.externalPostUrl || `https://www.linkedin.com/company/112977680/admin/feed/posts/`;
+
+    this.logger.log(`Successfully published post via WoopSocial to ${account.platform} [${externalId}]`);
+
+    return {
+      id: externalId,
+      postUrl,
+    };
+  }
+
+  /**
+   * Retrieve authenticated member's user info / person URN (Native LinkedIn OAuth)
    */
   async getUserInfo(): Promise<LinkedInUserInfo | null> {
     const accessToken = this.configService.get<string>('LINKEDIN_ACCESS_TOKEN');
@@ -78,12 +234,16 @@ export class LinkedInRestClient {
   }
 
   /**
-   * Create a post using LinkedIn Versioned REST API (202401 protocol)
+   * Create a post (routes to WoopSocial if configured, otherwise native LinkedIn REST API)
    */
   async createPost(req: LinkedInPostRequest): Promise<LinkedInPostResponse> {
+    if (this.isWoopConfigured()) {
+      return this.publishViaWoopSocial(req);
+    }
+
     const accessToken = this.configService.get<string>('LINKEDIN_ACCESS_TOKEN');
     if (!accessToken) {
-      throw new Error('LINKEDIN_ACCESS_TOKEN is not configured');
+      throw new Error('Neither WOOPSOCIAL_API_KEY nor LINKEDIN_ACCESS_TOKEN is configured');
     }
 
     let author = req.author || (await this.getAuthorUrn());
@@ -154,6 +314,20 @@ export class LinkedInRestClient {
   }
 
   async checkTokenHealth(): Promise<boolean> {
+    if (this.isWoopConfigured()) {
+      try {
+        const apiKey = this.configService.get<string>('WOOPSOCIAL_API_KEY');
+        const res = await fetch(`${this.woopBaseUrl}/social-accounts`, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        if (!res.ok) return false;
+        const accounts = await res.json();
+        return Array.isArray(accounts) && accounts.some((a: any) => a.status === 'CONNECTED');
+      } catch {
+        return false;
+      }
+    }
+
     const accessToken = this.configService.get<string>('LINKEDIN_ACCESS_TOKEN');
     if (!accessToken) return false;
 

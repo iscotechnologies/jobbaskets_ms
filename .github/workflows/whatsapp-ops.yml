@@ -17,6 +17,8 @@ on:
           - publish-recent-5
           - inspect-channel
           - test-text-publish
+          - update-linkedin-config
+          - test-linkedin-publish
 
 jobs:
   run-op:
@@ -204,6 +206,58 @@ jobs:
               echo ""
               echo "=== Recent Logs ==="
               docker logs --tail 30 jobbaskets_social_poster
+            elif [ "${{ github.event.inputs.action }}" = "update-linkedin-config" ]; then
+              echo "=== Updating WoopSocial / LinkedIn Config in .env ==="
+              update_or_add() {
+                key=$1
+                val=$2
+                if grep -q "^${key}=" .env; then
+                  sed -i "s|^${key}=.*|${key}=${val}|" .env
+                else
+                  echo "${key}=${val}" >> .env
+                fi
+              }
+              update_or_add "WOOPSOCIAL_API_KEY" "wsk_58a7701d50f33e95.1d924e59e52a819d6110ac3040747616008d76654b8c9cfde6dec00ef4d79d53"
+              update_or_add "WOOPSOCIAL_PROJECT_ID" "186675786814586880"
+              update_or_add "WOOPSOCIAL_LINKEDIN_ACCOUNT_ID" "186677700788748288"
+              update_or_add "LINKEDIN_ORG_ID" "112977680"
+              echo "Restarting social poster container..."
+              docker compose up -d --force-recreate
+              sleep 6
+              echo "=== Plugins Health ==="
+              curl -s http://127.0.0.1:3001/api/v1/plugins
+              echo ""
+              echo "=== Recent Logs ==="
+              docker logs --tail 40 jobbaskets_social_poster
+            elif [ "${{ github.event.inputs.action }}" = "test-linkedin-publish" ]; then
+              echo "=== Testing Social Publish to LinkedIn via WoopSocial ==="
+              SECRET=$(grep "INTERNAL_SERVICE_SECRET" .env | cut -d '=' -f2)
+              curl -s -X POST http://127.0.0.1:3001/api/v1/jobs/publish \
+                -H "Content-Type: application/json" \
+                -H "X-Internal-Service-Key: $SECRET" \
+                -d '{
+                  "job_id": 999997,
+                  "uuid": "test-li-woop-001",
+                  "title": "Full Stack Engineer",
+                  "company_name": "Job Baskets",
+                  "locations": ["Chennai", "Bangalore"],
+                  "employment_type": "Full Time",
+                  "experience_required": "2-4 Years",
+                  "salary_min": 50000,
+                  "salary_max": 90000,
+                  "salary_currency": "INR",
+                  "show_salary": true,
+                  "skills": ["Node.js", "React", "TypeScript"],
+                  "target_platforms": ["linkedin"],
+                  "force": true
+                }'
+              sleep 8
+              echo ""
+              echo "=== Job Social Status ==="
+              curl -s http://127.0.0.1:3001/api/v1/jobs/999997/social-status
+              echo ""
+              echo "=== Recent Logs ==="
+              docker logs --tail 40 jobbaskets_social_poster
             elif [ "${{ github.event.inputs.action }}" = "logs" ]; then
               docker logs --tail 100 jobbaskets_social_poster
             fi

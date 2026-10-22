@@ -8,6 +8,7 @@ import {
 import { BaseSocialPlugin } from '../base/base-social.plugin';
 import { FormattedPost, PluginHealth, PublishResult } from '../plugin.interface';
 import { LinkedInRestClient } from './linkedin-rest.client';
+import { JobBannerService } from '../../banner/job-banner.service';
 
 @Injectable()
 export class LinkedInPlugin extends BaseSocialPlugin {
@@ -17,24 +18,26 @@ export class LinkedInPlugin extends BaseSocialPlugin {
   constructor(
     private readonly configService: ConfigService,
     private readonly restClient: LinkedInRestClient,
+    private readonly bannerService: JobBannerService,
   ) {
     super();
   }
 
   isEnabled(): boolean {
+    const woopApiKey = this.configService.get<string>('WOOPSOCIAL_API_KEY');
     const token = this.configService.get<string>('LINKEDIN_ACCESS_TOKEN');
-    return Boolean(token);
+    return Boolean(woopApiKey || token);
   }
 
   async validateHealth(): Promise<PluginHealth> {
     if (!this.isEnabled()) {
-      return { healthy: false, message: 'LinkedIn access token not configured (running in sandbox mode)' };
+      return { healthy: false, message: 'LinkedIn credentials not configured (running in sandbox mode)' };
     }
 
     const isHealthy = await this.restClient.checkTokenHealth();
     return {
       healthy: isHealthy,
-      message: isHealthy ? 'LinkedIn API token is active' : 'LinkedIn API token is invalid or expired',
+      message: isHealthy ? 'LinkedIn connection is active' : 'LinkedIn token is invalid or expired',
     };
   }
 
@@ -106,6 +109,26 @@ export class LinkedInPlugin extends BaseSocialPlugin {
     const orgId = this.configService.get<string>('LINKEDIN_ORG_ID');
     const author = orgId ? (orgId.startsWith('urn:li:') ? orgId : `urn:li:organization:${orgId}`) : undefined;
 
+    let photoBuffer: Buffer | undefined;
+
+    if (payload.post_type === 'classified' && payload.image_url) {
+      try {
+        const response = await fetch(payload.image_url);
+        if (response.ok) {
+          photoBuffer = Buffer.from(await response.arrayBuffer());
+          this.logger.log(`LinkedIn: Using flyer image for classified ad ${payload.job_id}`);
+        }
+      } catch (err) {
+        this.logger.warn(`LinkedIn: Failed to download flyer image: ${err}`);
+      }
+    } else {
+      try {
+        photoBuffer = await this.bannerService.generateBanner(payload);
+      } catch (err) {
+        this.logger.warn(`LinkedIn banner rendering failed: ${err}`);
+      }
+    }
+
     const res = await this.restClient.createPost({
       author,
       commentary: formatted.text,
@@ -113,6 +136,7 @@ export class LinkedInPlugin extends BaseSocialPlugin {
       landingPageUrl: formatted.jobUrl,
       title: formatted.extraMetadata?.title as string,
       description: formatted.extraMetadata?.description as string,
+      photoBuffer,
     });
 
     return {
