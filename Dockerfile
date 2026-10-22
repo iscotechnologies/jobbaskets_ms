@@ -17,7 +17,7 @@ COPY libs ./libs
 COPY apps/social-poster ./apps/social-poster
 
 # Install all dependencies and compile social-poster
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm run build social-poster
 
 # ==========================================
@@ -40,7 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy manifests and install production-only dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY patches ./patches
-RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --prod --no-frozen-lockfile
 
 # Copy compiled artifacts and static assets (official logo)
 COPY --from=builder /app/dist ./dist
