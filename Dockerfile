@@ -5,8 +5,8 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Enable pnpm via corepack
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Enable pnpm
+RUN npm install -g pnpm@10.5.2
 
 # Copy root configuration files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml nest-cli.json tsconfig*.json ./
@@ -28,7 +28,7 @@ FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g pnpm@10.5.2
 
 # Install TrueType fonts so Canvas renders text beautifully
 RUN apt-get update && apt-get install -y --no-install-recommends \
