@@ -37,11 +37,17 @@ jobs:
             cd $TARGET_DIR
             
             if [ "${{ github.event.inputs.action }}" = "status" ]; then
-              echo "=== WhatsApp Status ==="
-              curl -s http://127.0.0.1:3001/api/v1/whatsapp/status || true
-              echo ""
+              echo "=== Docker Container State ==="
+              docker ps -a --filter name=jobbaskets_social_poster
+              echo "=== Inspection ==="
+              docker inspect --format='Status: {{.State.Status}} ExitCode: {{.State.ExitCode}} Error: {{.State.Error}}' jobbaskets_social_poster 2>&1 || true
               echo "=== Recent Logs ==="
-              docker logs --tail 40 jobbaskets_social_poster
+              docker logs --tail 50 jobbaskets_social_poster 2>&1 || true
+              echo "=== WhatsApp Status ==="
+              curl -s -m 5 http://127.0.0.1:3001/api/v1/whatsapp/status 2>&1 || true
+              echo ""
+              echo "=== Plugins Status ==="
+              curl -s -m 5 http://127.0.0.1:3001/api/v1/plugins 2>&1 || true
             elif [ "${{ github.event.inputs.action }}" = "pair" ]; then
               echo "=== Requesting Pairing Code ==="
               curl -s -X POST http://127.0.0.1:3001/api/v1/whatsapp/pair -H "Content-Type: application/json" -d '{"phoneNumber": "9943161027"}'
